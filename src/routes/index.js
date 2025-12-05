@@ -1,5 +1,6 @@
 import express from 'express';
 import healthRoute from './health.route.js';
+import authRoute from './auth.route.js';
 
 const router = express.Router();
 
@@ -11,8 +12,10 @@ const router = express.Router();
 // Health check route
 router.use('/health', healthRoute);
 
+// Authentication routes
+router.use('/auth', authRoute);
+
 // Future routes can be added here
 // router.use('/users', userRoute);
-// router.use('/auth', authRoute);
 
 export default router;
