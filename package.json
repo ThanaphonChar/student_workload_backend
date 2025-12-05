@@ -1,0 +1,35 @@
+{
+  "name": "student_workload_backend",
+  "version": "1.0.0",
+  "description": "Student Workload Backend API",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThanaphonChar/student_workload_backend.git"
+  },
+  "keywords": [
+    "express",
+    "nodejs",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ThanaphonChar/student_workload_backend/issues"
+  },
+  "homepage": "https://github.com/ThanaphonChar/student_workload_backend#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
