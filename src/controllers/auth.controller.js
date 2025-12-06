@@ -16,7 +16,9 @@ import * as tuAuthService from '../services/tuAuth.service.js';
 export const login = async (req, res) => {
     try {
         // Extract credentials from request body
-        const { username, password } = req.body;
+        // Support both lowercase (username/password) and TU API format (UserName/PassWord)
+        const username = req.body.UserName;
+        const password = req.body.PassWord;
 
         // Validate input
         if (!username || typeof username !== 'string' || username.trim() === '') {
