@@ -1,4 +1,6 @@
+import jwt from 'jsonwebtoken';
 import * as tuAuthService from '../services/tuAuth.service.js';
+import config from '../config/env.js';
 
 /**
  * Authentication Controller
@@ -14,6 +16,9 @@ import * as tuAuthService from '../services/tuAuth.service.js';
  * @param {Object} res - Express response object
  */
 export const login = async (req, res) => {
+    const requestStartTime = Date.now();
+    console.log(`[Auth] ⏱️  Request received at: ${new Date().toISOString()}`);
+
     try {
         // Extract credentials from request body
         // Support both lowercase (username/password) and TU API format (UserName/PassWord)
@@ -35,30 +40,62 @@ export const login = async (req, res) => {
             });
         }
 
-        // Log login attempt (never log password)
-        console.log(`[Auth] Login attempt for user: ${username}`);
+        const validationTime = Date.now() - requestStartTime;
+        console.log(`[Auth] ⏱️  Validation time: ${validationTime}ms`);
+        console.log(`[Auth] 🔑 Login attempt for user: ${username}`);
 
         // Call TU Auth service
+        const tuAuthStart = Date.now();
         const tuResponse = await tuAuthService.verifyCredentials(username, password);
+        const tuAuthTime = Date.now() - tuAuthStart;
+        console.log(`[Auth] ⏱️  TU Auth service time: ${tuAuthTime}ms`);
 
         // Check if authentication was successful
         if (tuResponse.status === true) {
             // Transform user data
+            const transformStart = Date.now();
             const userData = tuAuthService.transformUserData(tuResponse);
+            const transformTime = Date.now() - transformStart;
+            console.log(`[Auth] ⏱️  Transform user data: ${transformTime}ms`);
 
-            // Log successful login
-            console.log(`[Auth] Login successful for user: ${username} (${tuResponse.type})`);
+            // Generate JWT token
+            const jwtStart = Date.now();
+            const tokenPayload = {
+                username: userData.username,
+                type: userData.type,
+                email: userData.email,
+            };
+
+            const token = jwt.sign(
+                tokenPayload,
+                config.jwt.secret,
+                { expiresIn: config.jwt.expiresIn }
+            );
+            const jwtTime = Date.now() - jwtStart;
+            console.log(`[Auth] ⏱️  JWT generation: ${jwtTime}ms`);
+
+            // Calculate expiresIn in seconds (30 days = 2592000 seconds)
+            const expiresIn = 30 * 24 * 60 * 60; // 2592000 seconds
+
+            const totalTime = Date.now() - requestStartTime;
+            console.log(`[Auth] ✅ Login successful for user: ${username} (${tuResponse.type})`);
+            console.log(`[Auth] ⏱️  TOTAL LOGIN TIME: ${totalTime}ms`);
+            console.log(`[Auth] 📊 Breakdown: Validation(${validationTime}ms) + TU Auth(${tuAuthTime}ms) + Transform(${transformTime}ms) + JWT(${jwtTime}ms) = ${totalTime}ms`);
 
             // Respond with success
             return res.status(200).json({
                 success: true,
                 message: tuResponse.message || 'Login successful',
                 user: userData,
+                token: token,
+                expiresIn: expiresIn,
                 raw: tuResponse, // Include raw response for debugging/additional data
             });
         } else {
             // Authentication failed (wrong credentials)
-            console.log(`[Auth] Login failed for user: ${username} - ${tuResponse.message || 'Invalid credentials'}`);
+            const totalTime = Date.now() - requestStartTime;
+            console.log(`[Auth] ❌ Login failed for user: ${username} - ${tuResponse.message || 'Invalid credentials'}`);
+            console.log(`[Auth] ⏱️  Total time (failed): ${totalTime}ms`);
 
             return res.status(401).json({
                 success: false,
@@ -68,7 +105,9 @@ export const login = async (req, res) => {
 
     } catch (error) {
         // Handle service errors (network issues, API unavailable, etc.)
-        console.error('[Auth] Login error:', error.message);
+        const totalTime = Date.now() - requestStartTime;
+        console.error(`[Auth] ❌ Login error: ${error.message}`);
+        console.error(`[Auth] ⏱️  Total time (error): ${totalTime}ms`);
 
         // Determine appropriate status code
         const statusCode = error.message.includes('unavailable') ? 502 : 500;

@@ -14,6 +14,8 @@ import config from '../config/env.js';
  * @throws {Error} If authentication fails or service is unavailable
  */
 export const verifyCredentials = async (username, password) => {
+    const startTime = Date.now();
+
     try {
         // Build request URL
         const url = `${config.tuApi.baseUrl}/auth/Ad/verify`;
@@ -30,23 +32,32 @@ export const verifyCredentials = async (username, password) => {
             'Application-Key': config.tuApi.applicationKey,
         };
 
-        // Log request (without sensitive data)
-        console.log(`[TU Auth] Verifying credentials for user: ${username}`);
+        const prepTime = Date.now() - startTime;
+        console.log(`[TU Auth] ⏱️  Request preparation: ${prepTime}ms`);
+        console.log(`[TU Auth] 🔍 Verifying credentials for user: ${username}`);
 
-        // Call TU Auth API
+        // Call TU Auth API with increased timeout
+        const apiCallStart = Date.now();
         const response = await axios.post(url, requestBody, {
             headers,
-            timeout: 10000, // 10 second timeout
+            timeout: 30000, // 30 second timeout (increased from 10s)
         });
+        const apiCallTime = Date.now() - apiCallStart;
+
+        console.log(`[TU Auth] ⏱️  TU API call: ${apiCallTime}ms`);
+        console.log(`[TU Auth] ⏱️  Total verifyCredentials time: ${Date.now() - startTime}ms`);
 
         // Return the response data
         return response.data;
 
     } catch (error) {
+        const totalTime = Date.now() - startTime;
+        console.log(`[TU Auth] ⏱️  Total time before error: ${totalTime}ms`);
+
         // Handle axios errors
         if (error.response) {
             // TU API responded with an error status
-            console.error(`[TU Auth] API error: ${error.response.status}`, error.response.data);
+            console.error(`[TU Auth] ❌ API error: ${error.response.status}`, error.response.data);
 
             // Return the error response from TU API if available
             if (error.response.data) {
