@@ -16,6 +16,12 @@ const config = {
         baseUrl: process.env.TU_API_BASE_URL || 'https://restapi.tu.ac.th/api/v1',
         applicationKey: process.env.TU_API_APPLICATION_KEY,
     },
+
+    // JWT Configuration
+    jwt: {
+        secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+        expiresIn: process.env.JWT_EXPIRES_IN || '30d', // 30 days
+    },
 };
 
 // Validate required environment variables
