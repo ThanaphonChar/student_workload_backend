@@ -1,6 +1,7 @@
 import express from 'express';
 import healthRoute from './health.route.js';
 import authRoute from './auth.route.js';
+import subjectRoute from './subject.route.js';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.use('/health', healthRoute);
 // Authentication routes
 router.use('/auth', authRoute);
 
-// Future routes can be added here
-// router.use('/users', userRoute);
+// Subject routes (protected)
+router.use('/subjects', subjectRoute);
 
 export default router;
