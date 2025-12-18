@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import routes from './routes/index.js';
+import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
 /**
  * Express application configuration
@@ -38,25 +39,18 @@ app.get('/', (req, res) => {
                 update: 'PUT /api/subjects/:id',
                 delete: 'DELETE /api/subjects/:id',
             },
+            admin: {
+                syncProfessors: 'POST /api/admin/sync-professors',
+                validateDb: 'GET /api/admin/validate-db',
+            },
         },
     });
 });
 
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({
-        error: 'Not Found',
-        message: `Route ${req.method} ${req.url} not found`,
-    });
-});
+// 404 handler (must be before error handler)
+app.use(notFoundHandler);
 
-// Error handler
-app.use((err, req, res, next) => {
-    console.error('Error:', err.stack);
-    res.status(err.status || 500).json({
-        error: err.message || 'Internal Server Error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    });
-});
+// Global error handler (must be last)
+app.use(errorHandler);
 
 export default app;

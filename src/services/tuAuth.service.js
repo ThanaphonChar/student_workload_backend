@@ -1,10 +1,6 @@
 import axios from 'axios';
 import config from '../config/env.js';
 
-/**
- * TU Auth Service
- * Handles communication with Thammasat University Authentication API
- */
 
 /**
  * Verify user credentials with TU Auth API
@@ -18,7 +14,7 @@ export const verifyCredentials = async (username, password) => {
 
     try {
         // Build request URL
-        const url = `${config.tuApi.baseUrl}/auth/Ad/verify`;
+        const url = `${config.tuApi.authUrl}/auth/Ad/verify`;
 
         // Build request body matching TU API specification
         const requestBody = {

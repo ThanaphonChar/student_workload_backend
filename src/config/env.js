@@ -18,7 +18,8 @@ const config = {
 
     // TU Auth API Configuration
     tuApi: {
-        baseUrl: process.env.TU_API_BASE_URL,
+        authUrl: process.env.TU_API_AUTH_URL,
+        instructorsInfoUrl: process.env.TU_API_INSTRUCTORS_INFO_URL,
         applicationKey: process.env.TU_API_APPLICATION_KEY,
     },
 
