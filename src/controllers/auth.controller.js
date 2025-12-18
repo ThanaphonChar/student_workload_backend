@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import * as tuAuthService from '../services/tuAuth.service.js';
+import * as loginPostProcessService from '../services/loginPostProcess.service.js';
 import config from '../config/env.js';
 
 /**
@@ -58,12 +59,35 @@ export const login = async (req, res) => {
             const transformTime = Date.now() - transformStart;
             console.log(`[Auth] ⏱️  Transform user data: ${transformTime}ms`);
 
-            // Generate JWT token
+            // POST-LOGIN PROCESS: ตรวจสอบคณะและ sync เข้า database
+            let postProcessResult;
+            try {
+                const postProcessStart = Date.now();
+                postProcessResult = await loginPostProcessService.processLoginUser(tuResponse);
+                const postProcessTime = Date.now() - postProcessStart;
+                console.log(`[Auth] ⏱️  Post-process time: ${postProcessTime}ms`);
+            } catch (postProcessError) {
+                // การตรวจสอบคณะล้มเหลว หรือ sync error
+                console.error(`[Auth] ❌ Post-process failed: ${postProcessError.message}`);
+
+                const totalTime = Date.now() - requestStartTime;
+                console.log(`[Auth] ⏱️  Total time (post-process failed): ${totalTime}ms`);
+
+                return res.status(403).json({
+                    success: false,
+                    message: postProcessError.message,
+                    error: 'Access denied',
+                });
+            }
+
+            // Generate JWT token with user ID and role
             const jwtStart = Date.now();
             const tokenPayload = {
+                userId: postProcessResult.user.id,
                 username: userData.username,
                 type: userData.type,
                 email: userData.email,
+                role: postProcessResult.role,
             };
 
             const token = jwt.sign(
@@ -80,16 +104,19 @@ export const login = async (req, res) => {
             const totalTime = Date.now() - requestStartTime;
             console.log(`[Auth] ✅ Login successful for user: ${username} (${tuResponse.type})`);
             console.log(`[Auth] ⏱️  TOTAL LOGIN TIME: ${totalTime}ms`);
-            console.log(`[Auth] 📊 Breakdown: Validation(${validationTime}ms) + TU Auth(${tuAuthTime}ms) + Transform(${transformTime}ms) + JWT(${jwtTime}ms) = ${totalTime}ms`);
 
             // Respond with success
             return res.status(200).json({
                 success: true,
                 message: tuResponse.message || 'Login successful',
-                user: userData,
+                user: {
+                    ...userData,
+                    id: postProcessResult.user.id,
+                    role: postProcessResult.role,
+                    faculty: postProcessResult.faculty,
+                },
                 token: token,
                 expiresIn: expiresIn,
-                raw: tuResponse, // Include raw response for debugging/additional data
             });
         } else {
             // Authentication failed (wrong credentials)

@@ -1,0 +1,195 @@
+import { User } from '../models/user.model.js';
+import { AuthProfile } from '../models/AuthProfile.model.js';
+import * as userRepository from '../repositories/user.repository.js';
+import * as roleRepository from '../repositories/role.repository.js';
+import * as userRoleRepository from '../repositories/userRole.repository.js';
+import * as instructorApiService from './instructorApi.service.js';
+import { parseThaiName, parseEnglishName } from '../utils/nameParser.js';
+import { isAllowedFaculty, getAllowedFacultyName } from '../utils/facultyChecker.js';
+
+/**
+ * Login Post-Process Service
+ * จัดการ business logic หลังจาก login สำเร็จ
+ * 
+ * ❌ ห้ามจัดการ HTTP (req/res)
+ * ✅ ทำ business logic orchestration
+ * ✅ จัดการ transaction
+ */
+
+/**
+ * ประมวลผลหลังจาก user login สำเร็จ
+ * 
+ * Flow:
+ * 1. ตรวจสอบสิทธิ์การเข้าถึงตามคณะ
+ * 2. กำหนดประเภทผู้ใช้ (Student/Professor)
+ * 3. ดึงข้อมูลเพิ่มเติมถ้าจำเป็น (employee เท่านั้น)
+ * 4. Sync ข้อมูล user เข้า database
+ * 5. กำหนด role
+ * 
+ * @param {Object} tuAuthResponse - TU Auth API response
+ * @returns {Promise<Object>} - { user: User, role: string, faculty: string }
+ * @throws {Error} - ถ้าไม่ได้รับอนุญาตหรือ sync ล้มเหลว
+ */
+export async function processLoginUser(tuAuthResponse) {
+    console.log('[Login Post-Process] 🔄 เริ่มประมวลผลหลัง login...');
+
+    // 1. สร้าง AuthProfile model
+    const authProfile = AuthProfile.fromTUAuth(tuAuthResponse);
+
+    if (!authProfile.isValid()) {
+        throw new Error('ข้อมูล authentication profile ไม่ถูกต้อง');
+    }
+
+    // 2. กำหนดคณะและ validate สิทธิ์การเข้าถึง
+    let facultyNameTh = '';
+    let userData = null;
+
+    if (authProfile.isStudent()) {
+        // นักศึกษา: คณะมาจาก auth response
+        facultyNameTh = authProfile.faculty;
+        userData = await processStudent(authProfile);
+
+    } else if (authProfile.isEmployee()) {
+        // พนักงาน: ต้องดึงคณะจาก Instructor API
+        const result = await processEmployee(authProfile);
+        facultyNameTh = result.facultyNameTh;
+        userData = result.userData;
+
+    } else {
+        throw new Error(`ประเภทผู้ใช้ไม่รู้จัก: ${authProfile.type}`);
+    }
+
+    // 3. ตรวจสอบสิทธิ์การเข้าถึงตามคณะ
+    if (!isAllowedFaculty(facultyNameTh)) {
+        console.log(`[Login Post-Process] ❌ ไม่อนุญาตให้เข้าใช้งาน - คณะ: ${facultyNameTh}`);
+        throw new Error(
+            `ไม่อนุญาตให้เข้าใช้งาน อนุญาตเฉพาะ${getAllowedFacultyName()}เท่านั้น คณะของคุณ: ${facultyNameTh}`
+        );
+    }
+
+    console.log(`[Login Post-Process] ✅ ตรวจสอบคณะผ่าน: ${facultyNameTh}`);
+
+    // 4. Sync user เข้า database
+    const user = await syncUserToDatabase(userData);
+
+    // 5. กำหนด role
+    const roleName = authProfile.isStudent() ? 'Student' : 'Professor';
+    await assignUserRole(user.id, roleName);
+
+    console.log(`[Login Post-Process] ✅ ประมวลผลสำเร็จ: ${user.email} (${roleName})`);
+
+    return {
+        user,
+        role: roleName,
+        faculty: facultyNameTh,
+    };
+}
+
+/**
+ * ประมวลผล student user
+ * @param {AuthProfile} authProfile
+ * @returns {Promise<Object>} - User data object
+ */
+async function processStudent(authProfile) {
+    console.log('[Login Post-Process] 👨‍🎓 ประมวลผลนักศึกษา...');
+
+    // แยกชื่อจาก displayname
+    const thaiName = parseThaiName(authProfile.displayNameTh);
+    const englishName = parseEnglishName(authProfile.displayNameEn);
+
+    return {
+        firstNameTh: thaiName.firstName,
+        lastNameTh: thaiName.lastName,
+        firstNameEn: englishName.firstName,
+        lastNameEn: englishName.lastName,
+        email: authProfile.email,
+    };
+}
+
+/**
+ * ประมวลผล employee user
+ * @param {AuthProfile} authProfile
+ * @returns {Promise<Object>} - { facultyNameTh: string, userData: Object }
+ */
+async function processEmployee(authProfile) {
+    console.log('[Login Post-Process] 👨‍🏫 ประมวลผลพนักงาน...');
+
+    // ดึงข้อมูลอาจารย์จาก TU API
+    const instructorData = await instructorApiService.fetchInstructorByEmail(authProfile.email);
+
+    if (!instructorData) {
+        throw new Error(`ไม่พบข้อมูลอาจารย์สำหรับ email: ${authProfile.email}`);
+    }
+
+    if (!instructorData.facultyNameTh) {
+        throw new Error(`ไม่พบข้อมูลคณะสำหรับอาจารย์: ${authProfile.email}`);
+    }
+
+    return {
+        facultyNameTh: instructorData.facultyNameTh,
+        userData: {
+            firstNameTh: instructorData.firstNameTh,
+            lastNameTh: instructorData.lastNameTh,
+            firstNameEn: instructorData.firstNameEn,
+            lastNameEn: instructorData.lastNameEn,
+            email: instructorData.email,
+        },
+    };
+}
+
+/**
+ * Sync user เข้า database (สร้างถ้ายังไม่มี, ถ้ามีแล้วใช้ของเดิม)
+ * @param {Object} userData - User data object
+ * @returns {Promise<User>} - User model instance
+ */
+async function syncUserToDatabase(userData) {
+    console.log(`[Login Post-Process] 💾 Sync ข้อมูล user: ${userData.email}`);
+
+    // ตรวจสอบว่ามี user อยู่แล้วหรือไม่
+    const existingUser = await userRepository.findByEmail(userData.email);
+
+    if (existingUser) {
+        console.log(`[Login Post-Process] ⏭️ User มีอยู่แล้ว: ${userData.email} (ID: ${existingUser.id})`);
+        return existingUser;
+    }
+
+    // สร้าง user ใหม่
+    const user = User.create({
+        firstNameTh: userData.firstNameTh,
+        lastNameTh: userData.lastNameTh,
+        firstNameEn: userData.firstNameEn,
+        lastNameEn: userData.lastNameEn,
+        email: userData.email,
+    });
+
+    const createdUser = await userRepository.create(user);
+    console.log(`[Login Post-Process] ✅ สร้าง user ใหม่: ${createdUser.email} (ID: ${createdUser.id})`);
+
+    return createdUser;
+}
+
+/**
+ * กำหนด role ให้ user (idempotent - ไม่สร้างซ้ำ)
+ * @param {number} userId
+ * @param {string} roleName - 'Student' หรือ 'Professor'
+ * @returns {Promise<void>}
+ */
+async function assignUserRole(userId, roleName) {
+    console.log(`[Login Post-Process] 🎭 กำหนด role "${roleName}" ให้ user ID: ${userId}`);
+
+    // หา role จากชื่อ
+    const role = await roleRepository.findByName(roleName);
+
+    if (!role) {
+        throw new Error(`ไม่พบ role: ${roleName}`);
+    }
+
+    // กำหนด role (idempotent - ไม่สร้างซ้ำ)
+    const result = await userRoleRepository.assignRole(userId, role.id);
+
+    if (result.inserted) {
+        console.log(`[Login Post-Process] ✅ กำหนด role "${roleName}" ให้ user ID: ${userId} สำเร็จ`);
+    } else {
+        console.log(`[Login Post-Process] ⏭️ User ID ${userId} มี role "${roleName}" อยู่แล้ว`);
+    }
+}
