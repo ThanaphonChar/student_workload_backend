@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import routes from './routes/index.js';
-import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
 /**
  * Express application configuration
@@ -46,11 +45,5 @@ app.get('/', (req, res) => {
         },
     });
 });
-
-// 404 handler (must be before error handler)
-app.use(notFoundHandler);
-
-// Global error handler (must be last)
-app.use(errorHandler);
 
 export default app;
