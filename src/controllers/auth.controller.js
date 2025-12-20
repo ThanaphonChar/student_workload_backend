@@ -80,14 +80,13 @@ export const login = async (req, res) => {
                 });
             }
 
-            // Generate JWT token with user ID and role
+            // Generate JWT token with user ID and roles
+            // JWT payload ต้องมีเฉพาะ sub (user id) และ roles (array)
+            // ห้ามใส่ sensitive data เช่น email, username
             const jwtStart = Date.now();
             const tokenPayload = {
-                userId: postProcessResult.user.id,
-                username: userData.username,
-                type: userData.type,
-                email: userData.email,
-                role: postProcessResult.role,
+                sub: postProcessResult.user.id,
+                roles: postProcessResult.roles,
             };
 
             const token = jwt.sign(
@@ -112,7 +111,7 @@ export const login = async (req, res) => {
                 user: {
                     ...userData,
                     id: postProcessResult.user.id,
-                    role: postProcessResult.role,
+                    roles: postProcessResult.roles,
                     faculty: postProcessResult.faculty,
                 },
                 token: token,

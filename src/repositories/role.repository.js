@@ -11,10 +11,10 @@ import { pool } from '../config/db.js';
 /**
  * หา role จากชื่อ
  * @param {string} roleName - เช่น 'Student', 'Professor'
- * @returns {Promise<Object|null>} - Role object { id, role_name } หรือ null
+ * @returns {Promise<Object|null>} - Role object { id, name } หรือ null
  */
 export async function findByName(roleName) {
-    const sql = 'SELECT id, role_name FROM roles WHERE role_name = $1';
+    const sql = 'SELECT id, role_name as name FROM roles WHERE role_name = $1';
     const result = await pool.query(sql, [roleName]);
 
     if (result.rows.length === 0) {

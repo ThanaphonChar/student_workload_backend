@@ -37,6 +37,23 @@ export async function assignRole(userId, roleId, client = pool) {
 }
 
 /**
+ * ดึง roles ทั้งหมดของ user
+ * @param {number} userId
+ * @returns {Promise<Array>} - Array of { id, name }
+ */
+export async function getUserRoles(userId) {
+    const sql = `
+        SELECT r.id, r.role_name as name
+        FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+        WHERE ur.user_id = $1 AND ur.is_active = true
+        ORDER BY r.role_name
+    `;
+    const result = await pool.query(sql, [userId]);
+    return result.rows;
+}
+
+/**
  * ตรวจสอบว่า user มี role นี้หรือไม่
  * @param {number} userId
  * @param {number} roleId
@@ -52,17 +69,18 @@ export async function hasRole(userId, roleId) {
 }
 
 /**
- * ดึง roles ทั้งหมดของ user
+ * ลบ role ของ user (soft delete)
  * @param {number} userId
- * @returns {Promise<Array>} - Array ของ role objects
+ * @param {number} roleId
+ * @returns {Promise<boolean>} - true ถ้าลบสำเร็จ
  */
-export async function getUserRoles(userId) {
+export async function removeRole(userId, roleId) {
     const sql = `
-        SELECT r.id, r.role_name
-        FROM user_roles ur
-        JOIN roles r ON ur.role_id = r.id
-        WHERE ur.user_id = $1 AND ur.is_active = true
+        UPDATE user_roles 
+        SET is_active = false 
+        WHERE user_id = $1 AND role_id = $2
+        RETURNING *
     `;
-    const result = await pool.query(sql, [userId]);
-    return result.rows;
+    const result = await pool.query(sql, [userId, roleId]);
+    return result.rows.length > 0;
 }

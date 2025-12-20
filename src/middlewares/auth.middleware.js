@@ -39,9 +39,13 @@ export const authMiddleware = (req, res, next) => {
         const decoded = jwt.verify(token, config.jwt.secret);
 
         // Attach user data to request
-        req.user = decoded;
+        // req.user = { id, roles }
+        req.user = {
+            id: decoded.sub,
+            roles: decoded.roles || [],
+        };
 
-        console.log('[Auth] ✅ Token verified for user:', decoded.username);
+        console.log('[Auth] ✅ Token verified for user:', decoded.sub, 'roles:', decoded.roles);
 
         next();
     } catch (error) {
