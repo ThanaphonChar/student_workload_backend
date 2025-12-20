@@ -72,15 +72,19 @@ export async function processLoginUser(tuAuthResponse) {
     // 4. Sync user เข้า database
     const user = await syncUserToDatabase(userData);
 
-    // 5. กำหนด role
-    const roleName = authProfile.isStudent() ? 'Student' : 'Professor';
-    await assignUserRole(user.id, roleName);
+    // 5. กำหนด role เริ่มต้น (Student หรือ Professor)
+    const primaryRoleName = authProfile.isStudent() ? 'Student' : 'Professor';
+    await assignUserRole(user.id, primaryRoleName);
 
-    console.log(`[Login Post-Process] ✅ ประมวลผลสำเร็จ: ${user.email} (${roleName})`);
+    // 6. ดึง roles ทั้งหมดของ user
+    const userRoles = await getUserRoles(user.id);
+    const roleNames = userRoles.map(r => r.name);
+
+    console.log(`[Login Post-Process] ✅ ประมวลผลสำเร็จ: ${user.email} (${roleNames.join(', ')})`);
 
     return {
         user,
-        role: roleName,
+        roles: roleNames,
         faculty: facultyNameTh,
     };
 }
@@ -192,4 +196,19 @@ async function assignUserRole(userId, roleName) {
     } else {
         console.log(`[Login Post-Process] ⏭️ User ID ${userId} มี role "${roleName}" อยู่แล้ว`);
     }
+}
+
+/**
+ * ดึง roles ทั้งหมดของ user
+ * @param {number} userId
+ * @returns {Promise<Array>} - Array of role objects [{ id, name }]
+ */
+async function getUserRoles(userId) {
+    console.log(`[Login Post-Process] 🔍 ดึง roles ของ user ID: ${userId}`);
+
+    const roles = await userRoleRepository.getUserRoles(userId);
+
+    console.log(`[Login Post-Process] ✅ พบ ${roles.length} role(s): ${roles.map(r => r.name).join(', ')}`);
+
+    return roles;
 }
