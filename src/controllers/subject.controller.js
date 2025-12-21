@@ -22,16 +22,24 @@ export async function createSubject(req, res) {
             program_id,
             credit,
             outline,
-            student_year_id,
+            student_year_ids,
             count_workload,
             is_active,
         } = req.body;
 
         // Validate required fields
-        if (!code_th || !name_th || !program_id || !student_year_id || credit === undefined) {
+        if (!code_th || !name_th || !program_id || !student_year_ids || credit === undefined) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields: code_th, name_th, program_id, student_year_id, credit',
+                message: 'Missing required fields: code_th, name_th, program_id, student_year_ids, credit',
+            });
+        }
+
+        // Validate student_year_ids is an array
+        if (!Array.isArray(student_year_ids) || student_year_ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'student_year_ids must be a non-empty array',
             });
         }
 
@@ -52,13 +60,15 @@ export async function createSubject(req, res) {
             });
         }
 
-        // Check if student year exists
-        const studentYearExistsCheck = await subjectService.studentYearExists(student_year_id);
-        if (!studentYearExistsCheck) {
-            return res.status(404).json({
-                success: false,
-                message: `Student year with id ${student_year_id} not found`,
-            });
+        // Check if all student years exist
+        for (const yearId of student_year_ids) {
+            const studentYearExistsCheck = await subjectService.studentYearExists(yearId);
+            if (!studentYearExistsCheck) {
+                return res.status(404).json({
+                    success: false,
+                    message: `Student year with id ${yearId} not found`,
+                });
+            }
         }
 
         // Create subject
@@ -70,7 +80,7 @@ export async function createSubject(req, res) {
             program_id,
             credit,
             outline,
-            student_year_id,
+            student_year_ids,
             count_workload,
             is_active,
         });
@@ -218,13 +228,24 @@ export async function updateSubject(req, res) {
             }
         }
 
-        if (updateData.student_year_id) {
-            const studentYearExistsCheck = await subjectService.studentYearExists(updateData.student_year_id);
-            if (!studentYearExistsCheck) {
-                return res.status(404).json({
+        if (updateData.student_year_ids) {
+            // Validate it's an array
+            if (!Array.isArray(updateData.student_year_ids) || updateData.student_year_ids.length === 0) {
+                return res.status(400).json({
                     success: false,
-                    message: `Student year with id ${updateData.student_year_id} not found`,
+                    message: 'student_year_ids must be a non-empty array',
                 });
+            }
+
+            // Validate all student years exist
+            for (const yearId of updateData.student_year_ids) {
+                const studentYearExistsCheck = await subjectService.studentYearExists(yearId);
+                if (!studentYearExistsCheck) {
+                    return res.status(404).json({
+                        success: false,
+                        message: `Student year with id ${yearId} not found`,
+                    });
+                }
             }
         }
 
