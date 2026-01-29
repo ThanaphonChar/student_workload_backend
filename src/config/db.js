@@ -5,14 +5,27 @@ const { Pool } = pg;
 
 /**
  * PostgreSQL connection pool
- * Uses DATABASE_URL from environment (Render.com)
+ * Supports both connection string (DATABASE_URL) and individual credentials
  */
-export const pool = new Pool({
-    connectionString: config.database.url,
-    ssl: {
-        rejectUnauthorized: false, // Required for Render and most cloud PostgreSQL instances
-    },
-});
+const poolConfig = config.database.url
+    ? {
+          // Use connection string if available (e.g., for Render.com)
+          connectionString: config.database.url,
+          ssl: {
+              rejectUnauthorized: false,
+          },
+      }
+    : {
+          // Use individual credentials
+          host: config.database.host,
+          port: config.database.port,
+          database: config.database.name,
+          user: config.database.user,
+          password: config.database.password,
+          ssl: false, // Set to true if your database requires SSL
+      };
+
+export const pool = new Pool(poolConfig);
 
 /**
  * Helper function to execute queries

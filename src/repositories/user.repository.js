@@ -37,22 +37,30 @@ export async function create(user, client = pool) {
 
     const sql = `
         INSERT INTO users (
+            username,
             first_name_th,
             last_name_th,
             first_name_en,
             last_name_en,
             email,
+            user_type,
+            department,
+            faculty,
             is_active
-        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
     `;
 
     const values = [
+        insertData.username,
         insertData.first_name_th,
         insertData.last_name_th,
         insertData.first_name_en,
         insertData.last_name_en,
         insertData.email,
+        insertData.user_type,
+        insertData.department,
+        insertData.faculty,
         insertData.is_active,
     ];
 
