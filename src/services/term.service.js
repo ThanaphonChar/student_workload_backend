@@ -7,6 +7,7 @@
 import { pool } from '../config/db.js';
 import * as termRepo from '../repositories/term.repository.js';
 import * as termSubjectRepo from '../repositories/termSubject.repository.js';
+import * as subjectRepo from '../repositories/subject.repository.js';
 import {
     validateTermData,
     normalizeTermData,
@@ -31,6 +32,31 @@ export async function createTerm(termData, userId) {
     console.log('[createTerm Service] Extracted subject_ids:', subjectIds);
     console.log('[createTerm Service] Is array?', Array.isArray(subjectIds));
     console.log('[createTerm Service] Length:', subjectIds.length);
+
+    // Step 1.5: Validate that all subject IDs exist
+    if (subjectIds.length > 0) {
+        const existingSubjects = await subjectRepo.findSubjectsByIds(subjectIds);
+        console.log('[createTerm Service] Found existing subjects:', existingSubjects.length);
+        
+        if (existingSubjects.length !== subjectIds.length) {
+            const existingIds = existingSubjects.map(s => s.id);
+            const invalidIds = subjectIds.filter(id => !existingIds.includes(id));
+            console.error('[createTerm Service] Invalid subject IDs:', invalidIds);
+            
+            throw new BusinessError(
+                `ไม่พบรายวิชาที่มี ID: ${invalidIds.join(', ')} ในระบบ (Subject IDs not found: ${invalidIds.join(', ')})`,
+                'INVALID_SUBJECT_IDS',
+                400
+            );
+        }
+        
+        // Also check if any subjects are inactive
+        const inactiveSubjects = existingSubjects.filter(s => !s.is_active);
+        if (inactiveSubjects.length > 0) {
+            const inactiveCodes = inactiveSubjects.map(s => s.code_th || s.code_eng).join(', ');
+            console.warn('[createTerm Service] Warning: Some subjects are inactive:', inactiveCodes);
+        }
+    }
 
     // Step 2: Check for duplicate term
     const client = await pool.connect();
@@ -131,6 +157,31 @@ export async function updateTerm(termId, termData, userId) {
         console.log('[updateTerm Service] Is array?', Array.isArray(subjectIds));
         if (subjectIds) {
             console.log('[updateTerm Service] Length:', subjectIds.length);
+        }
+
+        // Step 2.5: Validate subject IDs if provided
+        if (subjectIds && Array.isArray(subjectIds) && subjectIds.length > 0) {
+            const existingSubjects = await subjectRepo.findSubjectsByIds(subjectIds);
+            console.log('[updateTerm Service] Found existing subjects:', existingSubjects.length);
+            
+            if (existingSubjects.length !== subjectIds.length) {
+                const existingIds = existingSubjects.map(s => s.id);
+                const invalidIds = subjectIds.filter(id => !existingIds.includes(id));
+                console.error('[updateTerm Service] Invalid subject IDs:', invalidIds);
+                
+                throw new BusinessError(
+                    `ไม่พบรายวิชาที่มี ID: ${invalidIds.join(', ')} ในระบบ (Subject IDs not found: ${invalidIds.join(', ')})`,
+                    'INVALID_SUBJECT_IDS',
+                    400
+                );
+            }
+            
+            // Also check if any subjects are inactive
+            const inactiveSubjects = existingSubjects.filter(s => !s.is_active);
+            if (inactiveSubjects.length > 0) {
+                const inactiveCodes = inactiveSubjects.map(s => s.code_th || s.code_eng).join(', ');
+                console.warn('[updateTerm Service] Warning: Some subjects are inactive:', inactiveCodes);
+            }
         }
 
         // Step 3: Check for duplicate if year/sector changed

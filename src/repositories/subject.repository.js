@@ -298,3 +298,24 @@ export async function checkSubjectCodeExists(codeTh, excludeId = null) {
     const result = await query(sql, values);
     return result.rows.length > 0;
 }
+
+/**
+ * Find subjects by multiple IDs
+ * @param {Array<number>} subjectIds - Array of subject IDs
+ * @returns {Promise<Array>} Array of existing subjects
+ */
+export async function findSubjectsByIds(subjectIds) {
+    if (!subjectIds || subjectIds.length === 0) {
+        return [];
+    }
+
+    const placeholders = subjectIds.map((_, index) => `$${index + 1}`).join(', ');
+    const sql = `
+        SELECT id, code_th, code_eng, name_th, name_eng, is_active
+        FROM subjects
+        WHERE id IN (${placeholders})
+    `;
+
+    const result = await query(sql, subjectIds);
+    return result.rows;
+}

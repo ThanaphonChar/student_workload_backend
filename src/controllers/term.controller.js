@@ -280,10 +280,19 @@ function handleError(res, error) {
 
     // PostgreSQL foreign key violation
     if (error.code === '23503') {
+        console.error('[handleError] Foreign key violation:', {
+            code: error.code,
+            detail: error.detail,
+            constraint: error.constraint,
+            table: error.table,
+            column: error.column,
+        });
+        
         return res.status(400).json({
             success: false,
-            message: 'Referenced data does not exist',
+            message: 'หนึ่งหรือมากกว่านั้นในรายวิชาที่เลือกไม่มีอยู่ในระบบ (One or more selected subjects do not exist in the database)',
             code: 'FOREIGN_KEY_VIOLATION',
+            detail: error.detail || 'Invalid subject reference',
         });
     }
 
