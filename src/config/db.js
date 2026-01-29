@@ -60,7 +60,7 @@ export async function testConnection() {
     }
 }
 
-// Handle Pool Errors
+// Handle Pool Errors Gracefully
 pool.on('error', (err) => {
     console.error('[DB] ❌ Unexpected pool error:', err);
 });
