@@ -16,7 +16,7 @@ export async function createTerm(req, res) {
     try {
         console.log('[createTerm] Received request body:', JSON.stringify(req.body, null, 2));
         console.log('[createTerm] subject_ids:', req.body.subject_ids);
-        
+
         const term = await termService.createTerm(req.body, req.user.id);
 
         res.status(201).json({
@@ -287,7 +287,7 @@ function handleError(res, error) {
             table: error.table,
             column: error.column,
         });
-        
+
         return res.status(400).json({
             success: false,
             message: 'หนึ่งหรือมากกว่านั้นในรายวิชาที่เลือกไม่มีอยู่ในระบบ (One or more selected subjects do not exist in the database)',

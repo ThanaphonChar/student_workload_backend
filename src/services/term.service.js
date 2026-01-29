@@ -37,19 +37,19 @@ export async function createTerm(termData, userId) {
     if (subjectIds.length > 0) {
         const existingSubjects = await subjectRepo.findSubjectsByIds(subjectIds);
         console.log('[createTerm Service] Found existing subjects:', existingSubjects.length);
-        
+
         if (existingSubjects.length !== subjectIds.length) {
             const existingIds = existingSubjects.map(s => s.id);
             const invalidIds = subjectIds.filter(id => !existingIds.includes(id));
             console.error('[createTerm Service] Invalid subject IDs:', invalidIds);
-            
+
             throw new BusinessError(
                 `ไม่พบรายวิชาที่มี ID: ${invalidIds.join(', ')} ในระบบ (Subject IDs not found: ${invalidIds.join(', ')})`,
                 'INVALID_SUBJECT_IDS',
                 400
             );
         }
-        
+
         // Also check if any subjects are inactive
         const inactiveSubjects = existingSubjects.filter(s => !s.is_active);
         if (inactiveSubjects.length > 0) {
@@ -110,7 +110,7 @@ export async function createTerm(termData, userId) {
  */
 export async function getAllTerms(filters = {}) {
     const terms = await termRepo.findAllTerms(filters);
-    
+
     // Add computed status to each term
     return terms.map(enrichTermWithStatus);
 }
@@ -163,19 +163,19 @@ export async function updateTerm(termId, termData, userId) {
         if (subjectIds && Array.isArray(subjectIds) && subjectIds.length > 0) {
             const existingSubjects = await subjectRepo.findSubjectsByIds(subjectIds);
             console.log('[updateTerm Service] Found existing subjects:', existingSubjects.length);
-            
+
             if (existingSubjects.length !== subjectIds.length) {
                 const existingIds = existingSubjects.map(s => s.id);
                 const invalidIds = subjectIds.filter(id => !existingIds.includes(id));
                 console.error('[updateTerm Service] Invalid subject IDs:', invalidIds);
-                
+
                 throw new BusinessError(
                     `ไม่พบรายวิชาที่มี ID: ${invalidIds.join(', ')} ในระบบ (Subject IDs not found: ${invalidIds.join(', ')})`,
                     'INVALID_SUBJECT_IDS',
                     400
                 );
             }
-            
+
             // Also check if any subjects are inactive
             const inactiveSubjects = existingSubjects.filter(s => !s.is_active);
             if (inactiveSubjects.length > 0) {
