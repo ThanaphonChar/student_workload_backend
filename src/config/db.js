@@ -9,21 +9,21 @@ const { Pool } = pg;
  */
 const poolConfig = config.database.url
     ? {
-          // Use connection string if available (e.g., for Render.com)
-          connectionString: config.database.url,
-          ssl: {
-              rejectUnauthorized: false,
-          },
-      }
+        // Use connection string if available (e.g., for Render.com)
+        connectionString: config.database.url,
+        ssl: {
+            rejectUnauthorized: false,
+        },
+    }
     : {
-          // Use individual credentials
-          host: config.database.host,
-          port: config.database.port,
-          database: config.database.name,
-          user: config.database.user,
-          password: config.database.password,
-          ssl: false, // Set to true if your database requires SSL
-      };
+        // Use individual credentials
+        host: config.database.host,
+        port: config.database.port,
+        database: config.database.name,
+        user: config.database.user,
+        password: config.database.password,
+        ssl: false, // Set to true if your database requires SSL
+    };
 
 export const pool = new Pool(poolConfig);
 
@@ -60,7 +60,7 @@ export async function testConnection() {
     }
 }
 
-// Handle pool errors
+// Handle Pool Errors
 pool.on('error', (err) => {
     console.error('[DB] ❌ Unexpected pool error:', err);
 });
