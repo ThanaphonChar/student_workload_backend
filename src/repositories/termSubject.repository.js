@@ -328,3 +328,252 @@ export async function replaceTermSubjects(client, termId, subjectIds, userId) {
     console.log('[replaceTermSubjects] No subjects to insert, returning empty array');
     return [];
 }
+
+/**
+ * ดึงข้อมูลรายวิชาในเทอมพร้อมสถานะต่างๆ และอาจารย์ผู้สอน
+ * ใช้สำหรับหน้า "สถานะรายวิชา"
+ * @param {Object} client - Database client
+ * @param {number} termId - Term ID
+ * @returns {Promise<Array>} รายการรายวิชาพร้อมข้อมูลสถานะครบถ้วน
+ */
+export async function findTermSubjectsWithStatus(client, termId) {
+    const sql = `
+        SELECT 
+            ts.id,
+            ts.term_id,
+            ts.subject_id,
+            ts.is_active,
+            ts.outline_status,
+            ts.outline_approved,
+            ts.workload_status,
+            ts.report_status,
+            ts.report_approved,
+            
+            -- ข้อมูลวิชา
+            s.code_th,
+            s.code_eng,
+            s.name_th,
+            s.name_eng,
+            s.credit,
+            s.program_id,
+            
+            -- ข้อมูลหลักสูตร
+            p.program_year,
+            
+            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
+            COALESCE(
+                json_agg(
+                    DISTINCT jsonb_build_object(
+                        'user_id', tsp.user_id,
+                        'email', u.email,
+                        'first_name_th', u.first_name_th,
+                        'last_name_th', u.last_name_th,
+                        'first_name_en', u.first_name_en,
+                        'last_name_en', u.last_name_en
+                    ) ORDER BY tsp.user_id
+                ) FILTER (WHERE tsp.user_id IS NOT NULL),
+                '[]'
+            ) as professors,
+            
+            -- นับจำนวนเอกสารแต่ละประเภท
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
+            
+        FROM term_subjects ts
+        JOIN subjects s ON ts.subject_id = s.id
+        LEFT JOIN programs p ON s.program_id = p.id
+        LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
+        LEFT JOIN users u ON tsp.user_id = u.id
+        LEFT JOIN document_files df ON ts.id = df.term_subject_id
+        LEFT JOIN document_types dt ON df.document_type_id = dt.id
+        
+        WHERE ts.term_id = $1
+        
+        GROUP BY 
+            ts.id, ts.term_id, ts.subject_id, ts.is_active,
+            ts.outline_status, ts.outline_approved,
+            ts.workload_status, ts.report_status, ts.report_approved,
+            s.code_th, s.code_eng, s.name_th, s.name_eng, s.credit, s.program_id,
+            p.program_year
+            
+        ORDER BY s.code_eng, s.code_th
+    `;
+
+    const result = await client.query(sql, [termId]);
+    return result.rows;
+}
+
+/**
+ * ดึงข้อมูลรายวิชาที่อาจารย์คนนั้นสอนในเทอมนั้น
+ * ใช้สำหรับ Professor role ที่ดูเฉพาะวิชาที่ตัวเองสอน
+ * @param {Object} client - Database client
+ * @param {number} termId - Term ID
+ * @param {number} userId - User ID ของอาจารย์
+ * @returns {Promise<Array>} รายการรายวิชาที่อาจารย์สอน
+ */
+export async function findTermSubjectsByProfessor(client, termId, userId) {
+    const sql = `
+        SELECT 
+            ts.id,
+            ts.term_id,
+            ts.subject_id,
+            ts.is_active,
+            ts.outline_status,
+            ts.outline_approved,
+            ts.workload_status,
+            ts.report_status,
+            ts.report_approved,
+            
+            -- ข้อมูลวิชา
+            s.code_th,
+            s.code_eng,
+            s.name_th,
+            s.name_eng,
+            s.credit,
+            s.program_id,
+            
+            -- ข้อมูลหลักสูตร
+            p.program_year,
+            
+            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
+            COALESCE(
+                json_agg(
+                    DISTINCT jsonb_build_object(
+                        'user_id', tsp.user_id,
+                        'email', u.email,
+                        'first_name_th', u.first_name_th,
+                        'last_name_th', u.last_name_th,
+                        'first_name_en', u.first_name_en,
+                        'last_name_en', u.last_name_en
+                    ) ORDER BY tsp.user_id
+                ) FILTER (WHERE tsp.user_id IS NOT NULL),
+                '[]'
+            ) as professors,
+            
+            -- นับจำนวนเอกสารแต่ละประเภท
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
+            
+        FROM term_subjects ts
+        JOIN subjects s ON ts.subject_id = s.id
+        LEFT JOIN programs p ON s.program_id = p.id
+        LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
+        LEFT JOIN users u ON tsp.user_id = u.id
+        LEFT JOIN document_files df ON ts.id = df.term_subject_id
+        LEFT JOIN document_types dt ON df.document_type_id = dt.id
+        
+        WHERE ts.term_id = $1
+          AND EXISTS (
+              SELECT 1 FROM term_subjects_professor tsp2
+              WHERE tsp2.term_subject_id = ts.id
+              AND tsp2.user_id = $2
+          )
+        
+        GROUP BY 
+            ts.id, ts.term_id, ts.subject_id, ts.is_active,
+            ts.outline_status, ts.outline_approved,
+            ts.workload_status, ts.report_status, ts.report_approved,
+            s.code_th, s.code_eng, s.name_th, s.name_eng, s.credit, s.program_id,
+            p.program_year
+            
+        ORDER BY s.code_eng, s.code_th
+    `;
+
+    const result = await client.query(sql, [termId, userId]);
+    return result.rows;
+}
+
+/**
+ * ดึงข้อมูลรายวิชาในเทอมที่ active อยู่
+ * ใช้สำหรับ tab "สถานะรายวิชา" ที่แสดงเฉพาะ active term
+ * @param {Object} client - Database client
+ * @param {number} userId - User ID (optional, สำหรับ Professor)
+ * @param {boolean} isProfessor - true ถ้า user เป็น Professor
+ * @returns {Promise<Array>} รายการรายวิชาใน active term
+ */
+export async function findActiveTermSubjectsWithStatus(client, userId = null, isProfessor = false) {
+    // ถ้าเป็น Professor ต้องกรองเฉพาะวิชาที่สอน
+    const professorFilter = isProfessor 
+        ? `AND EXISTS (
+              SELECT 1 FROM term_subjects_professor tsp2
+              WHERE tsp2.term_subject_id = ts.id
+              AND tsp2.user_id = $1
+          )`
+        : '';
+
+    const sql = `
+        SELECT 
+            ts.id,
+            ts.term_id,
+            ts.subject_id,
+            ts.is_active,
+            ts.outline_status,
+            ts.outline_approved,
+            ts.workload_status,
+            ts.report_status,
+            ts.report_approved,
+            
+            -- ข้อมูลเทอม
+            t.academic_year,
+            t.academic_sector,
+            
+            -- ข้อมูลวิชา
+            s.code_th,
+            s.code_eng,
+            s.name_th,
+            s.name_eng,
+            s.credit,
+            s.program_id,
+            
+            -- ข้อมูลหลักสูตร
+            p.program_year,
+            
+            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
+            COALESCE(
+                json_agg(
+                    DISTINCT jsonb_build_object(
+                        'user_id', tsp.user_id,
+                        'email', u.email,
+                        'first_name_th', u.first_name_th,
+                        'last_name_th', u.last_name_th,
+                        'first_name_en', u.first_name_en,
+                        'last_name_en', u.last_name_en
+                    ) ORDER BY tsp.user_id
+                ) FILTER (WHERE tsp.user_id IS NOT NULL),
+                '[]'
+            ) as professors,
+            
+            -- นับจำนวนเอกสารแต่ละประเภท
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
+            COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
+            
+        FROM terms t
+        JOIN term_subjects ts ON t.id = ts.term_id
+        JOIN subjects s ON ts.subject_id = s.id
+        LEFT JOIN programs p ON s.program_id = p.id
+        LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
+        LEFT JOIN users u ON tsp.user_id = u.id
+        LEFT JOIN document_files df ON ts.id = df.term_subject_id
+        LEFT JOIN document_types dt ON df.document_type_id = dt.id
+        
+        WHERE t.is_active = true
+        ${professorFilter}
+        
+        GROUP BY 
+            ts.id, ts.term_id, ts.subject_id, ts.is_active,
+            ts.outline_status, ts.outline_approved,
+            ts.workload_status, ts.report_status, ts.report_approved,
+            t.academic_year, t.academic_sector,
+            s.code_th, s.code_eng, s.name_th, s.name_eng, s.credit, s.program_id,
+            p.program_year
+            
+        ORDER BY s.code_eng, s.code_th
+    `;
+
+    const params = isProfessor && userId ? [userId] : [];
+    const result = await client.query(sql, params);
+    return result.rows;
+}

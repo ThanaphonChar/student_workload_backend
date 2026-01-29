@@ -328,6 +328,122 @@ export async function removeLecturer(req, res) {
 }
 
 /**
+ * @route   GET /api/terms/:termId/subjects/status
+ * @desc    ดึงข้อมูลสถานะรายวิชาในเทอม (แยกตาม role)
+ * @access  Protected (All authenticated users)
+ */
+export async function getCourseStatus(req, res) {
+    try {
+        const termId = parseInt(req.params.termId);
+
+        if (isNaN(termId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term ID',
+            });
+        }
+
+        // ส่ง user object ไปให้ service ตรวจสอบสิทธิ์
+        const subjects = await termSubjectService.getTermSubjectsStatus(termId, req.user);
+
+        res.status(200).json({
+            success: true,
+            count: subjects.length,
+            data: subjects,
+        });
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
+ * @route   GET /api/terms/active/subjects/status
+ * @desc    ดึงข้อมูลสถานะรายวิชาในเทอมที่ active อยู่
+ * @access  Protected (All authenticated users)
+ */
+export async function getActiveCourseStatus(req, res) {
+    try {
+        const result = await termSubjectService.getActiveTermSubjectsStatus(req.user);
+
+        res.status(200).json({
+            success: true,
+            term: result.term,
+            count: result.subjects.length,
+            data: result.subjects,
+        });
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
+ * @route   POST /api/term-subjects/:id/assign-professor
+ * @desc    มอบหมายอาจารย์ให้สอนวิชา
+ * @access  Protected (Academic Officer only)
+ */
+export async function assignProfessor(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.id);
+        const { professor_id } = req.body;
+
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        if (!professor_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Professor ID is required',
+            });
+        }
+
+        const assignment = await termSubjectService.assignProfessorToSubject(
+            termSubjectId,
+            professor_id,
+            req.user.id
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Professor assigned successfully',
+            data: assignment,
+        });
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
+ * @route   GET /api/term-subjects/:id/detail
+ * @desc    ดึงข้อมูล term subject โดยละเอียด พร้อมเช็คสิทธิ์
+ * @access  Protected (Academic staff or assigned professor)
+ */
+export async function getTermSubjectDetail(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.id);
+
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        const termSubject = await termSubjectService.getTermSubjectDetail(termSubjectId, req.user);
+
+        res.status(200).json({
+            success: true,
+            data: termSubject,
+        });
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
  * Centralized error handler
  */
 function handleError(res, error) {

@@ -41,6 +41,20 @@ router.get('/term/:termId', termSubjectController.getTermSubjects);
 router.get('/:id', termSubjectController.getTermSubjectById);
 
 /**
+ * @route   GET /api/term-subjects/:id/detail
+ * @desc    ดึงข้อมูล term subject โดยละเอียด พร้อมเช็คสิทธิ์
+ * @access  Protected (Academic staff or assigned professor)
+ */
+router.get('/:id/detail', termSubjectController.getTermSubjectDetail);
+
+/**
+ * @route   POST /api/term-subjects/:id/assign-professor
+ * @desc    มอบหมายอาจารย์ให้สอนวิชา
+ * @access  Protected (Academic Officer only)
+ */
+router.post('/:id/assign-professor', authorizeRoles(ROLES.ACADEMIC_OFFICER), termSubjectController.assignProfessor);
+
+/**
  * @route   PUT /api/term-subjects/:id
  * @desc    Update term subject
  * @access  Protected (Academic staff only)

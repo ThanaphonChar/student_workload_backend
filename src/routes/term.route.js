@@ -5,6 +5,7 @@
 
 import express from 'express';
 import * as termController from '../controllers/term.controller.js';
+import * as termSubjectController from '../controllers/termSubject.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 import { authorizeRoles, ROLES } from '../middlewares/role.middleware.js';
 
@@ -29,6 +30,13 @@ router.get('/', termController.getAllTerms);
  * @access  Protected (All authenticated users)
  */
 router.get('/active', termController.getActiveTerms);
+
+/**
+ * @route   GET /api/terms/active/subjects/status
+ * @desc    ดึงข้อมูลสถานะรายวิชาในเทอมที่ active
+ * @access  Protected (All authenticated users)
+ */
+router.get('/active/subjects/status', termSubjectController.getActiveCourseStatus);
 
 /**
  * @route   GET /api/terms/ended
@@ -71,6 +79,13 @@ router.delete('/:id', authorizeRoles(ROLES.ACADEMIC_OFFICER), termController.del
  * @access  Protected (All authenticated users)
  */
 router.get('/:id/subjects', termController.getTermSubjects);
+
+/**
+ * @route   GET /api/terms/:id/subjects/status
+ * @desc    ดึงข้อมูลสถานะรายวิชาในเทอม (แยกตาม role)
+ * @access  Protected (All authenticated users)
+ */
+router.get('/:id/subjects/status', termSubjectController.getCourseStatus);
 
 /**
  * @route   PUT /api/terms/:id/subjects
