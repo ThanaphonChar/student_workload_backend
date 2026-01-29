@@ -102,11 +102,15 @@ async function processStudent(authProfile) {
     const englishName = parseEnglishName(authProfile.displayNameEn);
 
     return {
+        username: authProfile.username,
         firstNameTh: thaiName.firstName,
         lastNameTh: thaiName.lastName,
         firstNameEn: englishName.firstName,
         lastNameEn: englishName.lastName,
         email: authProfile.email,
+        userType: authProfile.type,
+        department: authProfile.department,
+        faculty: authProfile.faculty,
     };
 }
 
@@ -132,11 +136,15 @@ async function processEmployee(authProfile) {
     return {
         facultyNameTh: instructorData.facultyNameTh,
         userData: {
+            username: instructorData.username,
             firstNameTh: instructorData.firstNameTh,
             lastNameTh: instructorData.lastNameTh,
             firstNameEn: instructorData.firstNameEn,
             lastNameEn: instructorData.lastNameEn,
             email: instructorData.email,
+            userType: instructorData.type,
+            department: instructorData.department,
+            faculty: instructorData.facultyNameTh,
         },
     };
 }
@@ -159,11 +167,15 @@ async function syncUserToDatabase(userData) {
 
     // สร้าง user ใหม่
     const user = User.create({
+        username: userData.username,
         firstNameTh: userData.firstNameTh,
         lastNameTh: userData.lastNameTh,
         firstNameEn: userData.firstNameEn,
         lastNameEn: userData.lastNameEn,
         email: userData.email,
+        userType: userData.userType,
+        department: userData.department,
+        faculty: userData.faculty,
     });
 
     const createdUser = await userRepository.create(user);
