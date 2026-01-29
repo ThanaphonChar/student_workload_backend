@@ -376,14 +376,14 @@ export async function getActiveTermSubjectsStatus(user) {
 
         // ตรวจสอบ role
         const userRoles = user.roles || [];
-        const isProfessor = userRoles.includes('Professor') && 
-                           !userRoles.includes('Academic Officer') && 
-                           !userRoles.includes('Program Chair');
+        const isProfessor = userRoles.includes('Professor') &&
+            !userRoles.includes('Academic Officer') &&
+            !userRoles.includes('Program Chair');
 
         // ดึงข้อมูลตาม role
         const subjects = await termSubjectRepo.findActiveTermSubjectsWithStatus(
-            client, 
-            user.id, 
+            client,
+            user.id,
             isProfessor
         );
 

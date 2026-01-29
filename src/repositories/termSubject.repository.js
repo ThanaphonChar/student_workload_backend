@@ -233,7 +233,7 @@ export async function countTermSubjects(client, termId) {
  */
 export async function bulkInsertTermSubjects(client, termId, subjectIds, userId) {
     console.log('[bulkInsertTermSubjects] Called with:', { termId, subjectIds, userId });
-    
+
     if (!subjectIds || subjectIds.length === 0) {
         console.log('[bulkInsertTermSubjects] No subjects to insert, returning empty array');
         return [];
@@ -251,7 +251,7 @@ export async function bulkInsertTermSubjects(client, termId, subjectIds, userId)
         values.push(termId, subjectId, userId);
         paramCount += 3;
     }
-    
+
     console.log('[bulkInsertTermSubjects] VALUES clauses:', valuesClauses.length);
     console.log('[bulkInsertTermSubjects] Values array:', values);
 
@@ -293,7 +293,7 @@ export async function bulkInsertTermSubjects(client, termId, subjectIds, userId)
     const result = await client.query(sql, values);
     console.log('[bulkInsertTermSubjects] Inserted rows:', result.rows.length);
     console.log('[bulkInsertTermSubjects] Result:', result.rows);
-    
+
     return result.rows;
 }
 
@@ -313,7 +313,7 @@ export async function deleteTermSubjectsByTermId(client, termId) {
  */
 export async function replaceTermSubjects(client, termId, subjectIds, userId) {
     console.log('[replaceTermSubjects] Called with:', { termId, subjectIds, userId });
-    
+
     // Delete existing term subjects
     const deleted = await deleteTermSubjectsByTermId(client, termId);
     console.log('[replaceTermSubjects] Deleted existing subjects:', deleted.length);
@@ -495,7 +495,7 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
  */
 export async function findActiveTermSubjectsWithStatus(client, userId = null, isProfessor = false) {
     // ถ้าเป็น Professor ต้องกรองเฉพาะวิชาที่สอน
-    const professorFilter = isProfessor 
+    const professorFilter = isProfessor
         ? `AND EXISTS (
               SELECT 1 FROM term_subjects_professor tsp2
               WHERE tsp2.term_subject_id = ts.id
