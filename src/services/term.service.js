@@ -23,6 +23,17 @@ import {
  * @returns {Promise<Object>} Created term with computed status
  */
 export async function createTerm(termData, userId) {
+    console.log('[createTerm Service] Starting with userId:', userId);
+    
+    // Step 0: Validate user ID
+    if (!userId || typeof userId !== 'number') {
+        throw new BusinessError(
+            'Invalid user ID. Please logout and login again.',
+            'INVALID_USER_ID',
+            400
+        );
+    }
+
     // Step 1: Validate and normalize data
     const normalized = normalizeTermData(termData);
     validateTermData(normalized);
@@ -66,11 +77,30 @@ export async function createTerm(termData, userId) {
         console.log('[createTerm Service] ✅ All subject IDs validated successfully');
     }
 
-    // Step 2: Check for duplicate term
+    // Step 2: Verify user exists in database
     const client = await pool.connect();
     try {
+        const userCheck = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
+        
+        if (userCheck.rows.length === 0) {
+            console.error('[createTerm Service] ❌ User not found in database:', userId);
+            throw new BusinessError(
+                'User account ไม่มีอยู่ในระบบ กรุณา logout และ login ใหม่อีกครั้ง (User not found in database)',
+                'USER_NOT_FOUND',
+                401
+            );
+        }
+        
+        console.log('[createTerm Service] ✅ User verified:', userId);
+    } finally {
+        client.release();
+    }
+
+    // Step 3: Check for duplicate term
+    const client2 = await pool.connect();
+    try {
         const existing = await termRepo.findTermByYearAndSector(
-            client,
+            client2,
             normalized.academic_year,
             normalized.academic_sector
         );
@@ -83,31 +113,31 @@ export async function createTerm(termData, userId) {
             );
         }
 
-        // Step 3: Insert term and subjects within transaction
-        await client.query('BEGIN');
+        // Step 4: Insert term and subjects within transaction
+        await client2.query('BEGIN');
 
-        const term = await termRepo.insertTerm(client, normalized, userId);
+        const term = await termRepo.insertTerm(client2, normalized, userId);
         console.log('[createTerm Service] Term created with ID:', term.id);
 
-        // Step 4: Add subjects if provided
+        // Step 5: Add subjects if provided
         if (subjectIds.length > 0) {
             console.log('[createTerm Service] Calling bulkInsertTermSubjects with:', { termId: term.id, subjectIds, userId });
-            const inserted = await termSubjectRepo.bulkInsertTermSubjects(client, term.id, subjectIds, userId);
+            const inserted = await termSubjectRepo.bulkInsertTermSubjects(client2, term.id, subjectIds, userId);
             console.log('[createTerm Service] Inserted term_subjects:', inserted.length);
         } else {
             console.log('[createTerm Service] No subjects to insert');
         }
 
-        await client.query('COMMIT');
+        await client2.query('COMMIT');
         console.log('[createTerm Service] Transaction committed successfully');
 
-        // Step 5: Add computed status before returning
+        // Step 6: Add computed status before returning
         return enrichTermWithStatus(term);
     } catch (error) {
-        await client.query('ROLLBACK');
+        await client2.query('ROLLBACK');
         throw error;
     } finally {
-        client.release();
+        client2.release();
     }
 }
 

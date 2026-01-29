@@ -16,6 +16,11 @@ export async function createTerm(req, res) {
     try {
         console.log('[createTerm] Received request body:', JSON.stringify(req.body, null, 2));
         console.log('[createTerm] subject_ids:', req.body.subject_ids);
+        console.log('[createTerm] User info from token:', {
+            id: req.user.id,
+            email: req.user.email,
+            roles: req.user.roles
+        });
 
         const term = await termService.createTerm(req.body, req.user.id);
 
@@ -288,11 +293,24 @@ function handleError(res, error) {
             column: error.column,
         });
 
+        // แยกแยะ error message ตาม detail
+        let message = 'ข้อมูลอ้างอิงไม่ถูกต้อง';
+        
+        if (error.detail) {
+            if (error.detail.includes('created_by') || error.detail.includes('users')) {
+                message = 'User account ไม่มีอยู่ในระบบ กรุณา logout และ login ใหม่อีกครั้ง (User not found in database)';
+            } else if (error.detail.includes('subject_id') || error.detail.includes('subjects')) {
+                message = 'หนึ่งหรือมากกว่านั้นในรายวิชาที่เลือกไม่มีอยู่ในระบบ (One or more selected subjects do not exist in the database)';
+            } else if (error.detail.includes('term_id') || error.detail.includes('terms')) {
+                message = 'ภาคการศึกษาไม่มีอยู่ในระบบ (Term not found in database)';
+            }
+        }
+
         return res.status(400).json({
             success: false,
-            message: 'หนึ่งหรือมากกว่านั้นในรายวิชาที่เลือกไม่มีอยู่ในระบบ (One or more selected subjects do not exist in the database)',
+            message: message,
             code: 'FOREIGN_KEY_VIOLATION',
-            detail: error.detail || 'Invalid subject reference',
+            detail: process.env.NODE_ENV === 'development' ? error.detail : undefined,
         });
     }
 
