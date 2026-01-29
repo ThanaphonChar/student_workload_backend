@@ -276,3 +276,12 @@ export async function deleteSubject(id) {
     console.log('[Subject Service] ✅ Subject deactivated:', id);
     return subject;
 }
+
+/**
+ * Find subjects by IDs
+ * @param {Array<number>} subjectIds - Array of subject IDs
+ * @returns {Promise<Array>} Array of existing subjects
+ */
+export async function findSubjectsByIds(subjectIds) {
+    return await subjectRepo.findSubjectsByIds(subjectIds);
+}

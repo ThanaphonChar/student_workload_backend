@@ -29,6 +29,13 @@ router.post('/', subjectController.createSubject);
 router.get('/', subjectController.getAllSubjects);
 
 /**
+ * @route   POST /api/subjects/validate-ids
+ * @desc    ตรวจสอบว่า subject IDs มีอยู่จริงหรือไม่
+ * @access  Private (requires JWT)
+ */
+router.post('/validate-ids', subjectController.validateSubjectIds);
+
+/**
  * @route   GET /api/subjects/:id
  * @desc    ดึงข้อมูล subject ตาม ID
  * @access  Private (requires JWT)

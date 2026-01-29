@@ -35,13 +35,19 @@ export async function createTerm(termData, userId) {
 
     // Step 1.5: Validate that all subject IDs exist
     if (subjectIds.length > 0) {
+        console.log('[createTerm Service] Validating subject IDs...');
+        console.log('[createTerm Service] Subject IDs to validate:', JSON.stringify(subjectIds));
+        
         const existingSubjects = await subjectRepo.findSubjectsByIds(subjectIds);
         console.log('[createTerm Service] Found existing subjects:', existingSubjects.length);
+        console.log('[createTerm Service] Existing subject IDs:', existingSubjects.map(s => s.id));
 
         if (existingSubjects.length !== subjectIds.length) {
             const existingIds = existingSubjects.map(s => s.id);
             const invalidIds = subjectIds.filter(id => !existingIds.includes(id));
-            console.error('[createTerm Service] Invalid subject IDs:', invalidIds);
+            console.error('[createTerm Service] ❌ INVALID SUBJECT IDs:', invalidIds);
+            console.error('[createTerm Service] Requested IDs:', subjectIds);
+            console.error('[createTerm Service] Found IDs:', existingIds);
 
             throw new BusinessError(
                 `ไม่พบรายวิชาที่มี ID: ${invalidIds.join(', ')} ในระบบ (Subject IDs not found: ${invalidIds.join(', ')})`,
@@ -54,8 +60,10 @@ export async function createTerm(termData, userId) {
         const inactiveSubjects = existingSubjects.filter(s => !s.is_active);
         if (inactiveSubjects.length > 0) {
             const inactiveCodes = inactiveSubjects.map(s => s.code_th || s.code_eng).join(', ');
-            console.warn('[createTerm Service] Warning: Some subjects are inactive:', inactiveCodes);
+            console.warn('[createTerm Service] ⚠️ Warning: Some subjects are inactive:', inactiveCodes);
         }
+        
+        console.log('[createTerm Service] ✅ All subject IDs validated successfully');
     }
 
     // Step 2: Check for duplicate term

@@ -310,3 +310,45 @@ export async function deleteSubject(req, res) {
         });
     }
 }
+
+/**
+ * Validate subject IDs
+ * POST /api/subjects/validate-ids
+ * Body: { subject_ids: [1, 2, 3] }
+ */
+export async function validateSubjectIds(req, res) {
+    try {
+        const { subject_ids } = req.body;
+
+        if (!Array.isArray(subject_ids)) {
+            return res.status(400).json({
+                success: false,
+                message: 'subject_ids must be an array',
+            });
+        }
+
+        console.log('[Subject] 🔍 Validating subject IDs:', subject_ids);
+
+        const existingSubjects = await subjectService.findSubjectsByIds(subject_ids);
+        const existingIds = existingSubjects.map(s => s.id);
+        const invalidIds = subject_ids.filter(id => !existingIds.includes(id));
+
+        console.log('[Subject] Found:', existingIds);
+        console.log('[Subject] Invalid:', invalidIds);
+
+        res.status(200).json({
+            success: true,
+            valid: invalidIds.length === 0,
+            existing_ids: existingIds,
+            invalid_ids: invalidIds,
+            subjects: existingSubjects,
+        });
+    } catch (error) {
+        console.error('[Subject] ❌ Validation error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate subject IDs',
+            error: error.message,
+        });
+    }
+}
