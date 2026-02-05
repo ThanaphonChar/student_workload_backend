@@ -334,9 +334,13 @@ export async function removeLecturer(req, res) {
  */
 export async function getCourseStatus(req, res) {
     try {
+        console.log('[getCourseStatus] 🔵 Request received for term ID:', req.params.id);
+        console.log('[getCourseStatus] 👤 User:', req.user?.id, 'roles:', req.user?.roles);
+
         const termId = parseInt(req.params.id); // เปลี่ยนจาก termId เป็น id
 
         if (isNaN(termId)) {
+            console.log('[getCourseStatus] ❌ Invalid term ID');
             return res.status(400).json({
                 success: false,
                 message: 'Invalid term ID',
@@ -346,12 +350,14 @@ export async function getCourseStatus(req, res) {
         // ส่ง user object ไปให้ service ตรวจสอบสิทธิ์
         const subjects = await termSubjectService.getTermSubjectsStatus(termId, req.user);
 
+        console.log('[getCourseStatus] ✅ Success, found', subjects.length, 'subjects');
         res.status(200).json({
             success: true,
             count: subjects.length,
             data: subjects,
         });
     } catch (error) {
+        console.error('[getCourseStatus] ❌ Error:', error);
         handleError(res, error);
     }
 }
@@ -468,15 +474,15 @@ export async function getTermSubjectDetail(req, res) {
 export async function getMySubjects(req, res) {
     try {
         console.log('[Term Subject Controller] 📥 Get my subjects request from user:', req.user.id);
-        
+
         const subjects = await termSubjectService.getMySubjects(req.user.id);
-        
+
         return res.status(200).json({
             success: true,
             count: subjects.length,
             data: subjects,
         });
-        
+
     } catch (error) {
         return handleError(res, error);
     }
@@ -490,7 +496,7 @@ export async function getMySubjects(req, res) {
 export async function submitWorkload(req, res) {
     try {
         const termSubjectId = parseInt(req.params.termSubjectId);
-        
+
         if (isNaN(termSubjectId)) {
             return res.status(400).json({
                 success: false,
@@ -520,7 +526,7 @@ export async function submitWorkload(req, res) {
 export async function approveWorkload(req, res) {
     try {
         const termSubjectId = parseInt(req.params.termSubjectId);
-        
+
         if (isNaN(termSubjectId)) {
             return res.status(400).json({
                 success: false,
@@ -550,7 +556,7 @@ export async function approveWorkload(req, res) {
 export async function rejectWorkload(req, res) {
     try {
         const termSubjectId = parseInt(req.params.termSubjectId);
-        
+
         if (isNaN(termSubjectId)) {
             return res.status(400).json({
                 success: false,

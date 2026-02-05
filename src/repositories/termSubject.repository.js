@@ -350,7 +350,8 @@ export async function findTermSubjectsWithStatus(client, termId) {
             ts.is_active,
             ts.outline_status,
             ts.outline_approved,
-            ts.workload_status,            ts.workload_approved,            ts.report_status,
+            ts.workload_status,
+            ts.report_status,
             ts.report_approved,
             
             -- ข้อมูลวิชา
@@ -426,7 +427,6 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
             ts.outline_status,
             ts.outline_approved,
             ts.workload_status,
-            ts.workload_approved,
             ts.report_status,
             ts.report_approved,
             
@@ -500,7 +500,7 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
  */
 export async function findActiveTermSubjectsWithStatus(client, termId, userId = null, isProfessor = false) {
     console.log('[findActiveTermSubjectsWithStatus] 📊 Parameters:', { termId, userId, isProfessor });
-    
+
     // ถ้าเป็น Professor ต้องกรองเฉพาะวิชาที่สอน
     const professorFilter = isProfessor
         ? `AND EXISTS (
@@ -519,7 +519,6 @@ export async function findActiveTermSubjectsWithStatus(client, termId, userId = 
             ts.outline_status,
             ts.outline_approved,
             ts.workload_status,
-            ts.workload_approved,
             ts.report_status,
             ts.report_approved,
             
@@ -584,7 +583,7 @@ export async function findActiveTermSubjectsWithStatus(client, termId, userId = 
     const params = isProfessor && userId ? [userId, termId] : [termId];
     console.log('[findActiveTermSubjectsWithStatus] 🎯 SQL params:', params);
     console.log('[findActiveTermSubjectsWithStatus] 📝 Executing query...');
-    
+
     try {
         const result = await client.query(sql, params);
         console.log('[findActiveTermSubjectsWithStatus] ✅ Found', result.rows.length, 'subjects');
@@ -615,7 +614,6 @@ export async function findSubjectsByProfessorId(client, userId) {
             ts.outline_status,
             ts.outline_approved,
             ts.workload_status,
-            ts.workload_approved,
             ts.report_status,
             ts.report_approved,
             ts.created_at,
@@ -638,7 +636,7 @@ export async function findSubjectsByProfessorId(client, userId) {
           AND ts.is_active = true
         ORDER BY t.academic_year DESC, t.term_name, s.code_eng
     `;
-    
+
     const result = await client.query(sql, [userId]);
     return result.rows;
 }
@@ -662,7 +660,7 @@ export async function updateWorkloadStatus(client, termSubjectId, status, userId
         WHERE id = $3
         RETURNING *
     `;
-    
+
     const result = await client.query(sql, [status, userId, termSubjectId]);
     return result.rows[0];
 }

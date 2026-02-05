@@ -14,15 +14,15 @@ import * as userService from '../services/user.service.js';
 export async function getProfessors(req, res) {
     try {
         console.log('[User Controller] 📥 Get professors request');
-        
+
         const professors = await userService.getProfessors();
-        
+
         return res.status(200).json({
             success: true,
             count: professors.length,
             data: professors,
         });
-        
+
     } catch (error) {
         return handleError(res, error);
     }
@@ -35,7 +35,7 @@ export async function getProfessors(req, res) {
  */
 function handleError(res, error) {
     console.error('[User Controller] ❌ Error:', error);
-    
+
     // Unknown Error
     return res.status(500).json({
         success: false,

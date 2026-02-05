@@ -331,10 +331,12 @@ export async function getResponsibleLecturer(termSubjectId) {
  * @returns {Promise<Array>} รายการรายวิชาพร้อมสถานะ
  */
 export async function getTermSubjectsStatus(termId, user) {
+    console.log('[getTermSubjectsStatus] 🔵 Starting for term:', termId, 'user:', user?.id, 'roles:', user?.roles);
     const client = await pool.connect();
     try {
         // ตรวจสอบว่า term มีอยู่จริง
         const term = await termRepo.findTermById(client, termId);
+        console.log('[getTermSubjectsStatus] 📅 Term found:', term ? `ID ${term.id}` : 'NULL');
         if (!term) {
             throw new BusinessError('Term not found', 'TERM_NOT_FOUND', 404);
         }
@@ -342,17 +344,24 @@ export async function getTermSubjectsStatus(termId, user) {
         // ตรวจสอบ role เพื่อดึงข้อมูล
         const userRoles = user.roles || [];
         const isAcademicStaff = userRoles.includes('Academic Officer') || userRoles.includes('Program Chair');
+        console.log('[getTermSubjectsStatus] 👤 isAcademicStaff:', isAcademicStaff);
 
         let subjects;
         if (isAcademicStaff) {
             // Academic staff ดูได้ทั้งหมด
+            console.log('[getTermSubjectsStatus] 📞 Calling findTermSubjectsWithStatus...');
             subjects = await termSubjectRepo.findTermSubjectsWithStatus(client, termId);
         } else {
             // Professor ดูเฉพาะวิชาที่สอน
+            console.log('[getTermSubjectsStatus] 📞 Calling findTermSubjectsByProfessor...');
             subjects = await termSubjectRepo.findTermSubjectsByProfessor(client, termId, user.id);
         }
 
+        console.log('[getTermSubjectsStatus] ✅ Found', subjects.length, 'subjects');
         return subjects;
+    } catch (error) {
+        console.error('[getTermSubjectsStatus] ❌ Error:', error.message);
+        throw error;
     } finally {
         client.release();
     }
@@ -373,7 +382,7 @@ export async function getActiveTermSubjectsStatus(user) {
         // หาภาคการศึกษาปัจจุบันอัตโนมัติ (ตามวันที่หรือเทอมใหม่สุด)
         const currentTerm = await termRepo.findCurrentTerm();
         console.log('[getActiveTermSubjectsStatus] 📅 Current term found:', currentTerm ? `ID ${currentTerm.id}` : 'NULL');
-        
+
         if (!currentTerm) {
             throw new BusinessError('No term found in the system', 'NO_TERM_FOUND', 404);
         }
@@ -517,13 +526,13 @@ export async function getTermSubjectDetail(termSubjectId, user) {
  */
 export async function getMySubjects(userId) {
     console.log('[Term Subject Service] 📚 Fetching subjects for professor:', userId);
-    
+
     const client = await pool.connect();
     try {
         const subjects = await termSubjectRepo.findSubjectsByProfessorId(client, userId);
-        
+
         console.log('[Term Subject Service] ✅ Found', subjects.length, 'assigned subjects');
-        
+
         return subjects;
     } finally {
         client.release();
@@ -546,7 +555,7 @@ export async function getMySubjects(userId) {
  */
 export async function submitWorkload(termSubjectId, userId) {
     console.log('[submitWorkload] 📤 Professor', userId, 'submitting workload for term subject', termSubjectId);
-    
+
     const client = await pool.connect();
     try {
         // Validate term subject exists
@@ -558,7 +567,7 @@ export async function submitWorkload(termSubjectId, userId) {
         // Check if user is assigned as professor
         const professors = await termSubjectRepo.findProfessorsByTermSubject(client, termSubjectId);
         const isAssigned = professors.some(p => p.user_id === userId);
-        
+
         if (!isAssigned) {
             throw new BusinessError(
                 'You are not assigned to this subject',
@@ -575,7 +584,7 @@ export async function submitWorkload(termSubjectId, userId) {
                 409
             );
         }
-        
+
         if (termSubject.workload_approved === 'approved') {
             throw new BusinessError(
                 'Workload already approved. Cannot resubmit.',
@@ -611,7 +620,7 @@ export async function submitWorkload(termSubjectId, userId) {
  */
 export async function approveWorkload(termSubjectId, userId) {
     console.log('[approveWorkload] ✅ Academic Officer', userId, 'approving workload for term subject', termSubjectId);
-    
+
     const client = await pool.connect();
     try {
         // Validate term subject exists
@@ -628,7 +637,7 @@ export async function approveWorkload(termSubjectId, userId) {
                 400
             );
         }
-        
+
         if (termSubject.workload_approved === 'approved') {
             throw new BusinessError(
                 'Workload already approved',
@@ -668,7 +677,7 @@ export async function rejectWorkload(termSubjectId, userId, reason = null) {
     if (reason) {
         console.log('[rejectWorkload] 📝 Rejection reason:', reason);
     }
-    
+
     const client = await pool.connect();
     try {
         // Validate term subject exists
@@ -685,7 +694,7 @@ export async function rejectWorkload(termSubjectId, userId, reason = null) {
                 400
             );
         }
-        
+
         if (termSubject.workload_approved === 'approved') {
             throw new BusinessError(
                 'Cannot reject workload that has already been approved',
