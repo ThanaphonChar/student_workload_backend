@@ -94,3 +94,35 @@ export async function existsByEmail(email) {
     const result = await pool.query(sql, [email]);
     return result.rows.length > 0;
 }
+
+/**
+ * ดึงรายชื่อ users ตาม role name
+ * @param {string} roleName - ชื่อ role เช่น 'Professor', 'Academic Officer'
+ * @returns {Promise<Array>} - Array ของ user objects
+ */
+export async function findUsersByRole(roleName) {
+    const sql = `
+        SELECT 
+            u.id,
+            u.username,
+            u.first_name_th,
+            u.last_name_th,
+            u.first_name_en,
+            u.last_name_en,
+            u.email,
+            u.user_type,
+            u.department,
+            u.faculty,
+            u.is_active
+        FROM users u
+        JOIN user_roles ur ON u.id = ur.user_id
+        JOIN roles r ON ur.role_id = r.id
+        WHERE r.role_name = $1
+          AND ur.is_active = true
+          AND u.is_active = true
+        ORDER BY u.first_name_en, u.last_name_en
+    `;
+    
+    const result = await pool.query(sql, [roleName]);
+    return result.rows;
+}

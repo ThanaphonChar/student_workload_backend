@@ -127,6 +127,12 @@ export async function updateTermSubject(client, termSubjectId, updateData, userI
         paramCount++;
     }
 
+    if (updateData.workload_approved !== undefined) {
+        fields.push(`workload_approved = $${paramCount}`);
+        values.push(updateData.workload_approved);
+        paramCount++;
+    }
+
     if (updateData.report_status !== undefined) {
         fields.push(`report_status = $${paramCount}`);
         values.push(updateData.report_status);
@@ -177,7 +183,6 @@ export async function assignProfessor(client, termSubjectId, userId, createdBy) 
             created_at,
             created_by
         ) VALUES ($1, $2, NOW(), $3)
-        ON CONFLICT (term_subject_id, user_id) DO NOTHING
         RETURNING *
     `;
     const result = await client.query(sql, [termSubjectId, userId, createdBy]);
@@ -345,8 +350,7 @@ export async function findTermSubjectsWithStatus(client, termId) {
             ts.is_active,
             ts.outline_status,
             ts.outline_approved,
-            ts.workload_status,
-            ts.report_status,
+            ts.workload_status,            ts.workload_approved,            ts.report_status,
             ts.report_approved,
             
             -- ข้อมูลวิชา
@@ -363,7 +367,7 @@ export async function findTermSubjectsWithStatus(client, termId) {
             -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
             COALESCE(
                 json_agg(
-                    DISTINCT jsonb_build_object(
+                    jsonb_build_object(
                         'user_id', tsp.user_id,
                         'email', u.email,
                         'first_name_th', u.first_name_th,
@@ -373,20 +377,20 @@ export async function findTermSubjectsWithStatus(client, termId) {
                     ) ORDER BY tsp.user_id
                 ) FILTER (WHERE tsp.user_id IS NOT NULL),
                 '[]'
-            ) as professors,
+            ) as professors
             
-            -- นับจำนวนเอกสารแต่ละประเภท
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
+            -- TODO: เพิ่ม document counts เมื่อสร้างตาราง document_files และ document_types แล้ว
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
             
         FROM term_subjects ts
         JOIN subjects s ON ts.subject_id = s.id
         LEFT JOIN programs p ON s.program_id = p.id
         LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
         LEFT JOIN users u ON tsp.user_id = u.id
-        LEFT JOIN document_files df ON ts.id = df.term_subject_id
-        LEFT JOIN document_types dt ON df.document_type_id = dt.id
+        -- LEFT JOIN document_files df ON ts.id = df.term_subject_id
+        -- LEFT JOIN document_types dt ON df.document_type_id = dt.id
         
         WHERE ts.term_id = $1
         
@@ -422,6 +426,7 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
             ts.outline_status,
             ts.outline_approved,
             ts.workload_status,
+            ts.workload_approved,
             ts.report_status,
             ts.report_approved,
             
@@ -439,7 +444,7 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
             -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
             COALESCE(
                 json_agg(
-                    DISTINCT jsonb_build_object(
+                    jsonb_build_object(
                         'user_id', tsp.user_id,
                         'email', u.email,
                         'first_name_th', u.first_name_th,
@@ -449,20 +454,20 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
                     ) ORDER BY tsp.user_id
                 ) FILTER (WHERE tsp.user_id IS NOT NULL),
                 '[]'
-            ) as professors,
+            ) as professors
             
-            -- นับจำนวนเอกสารแต่ละประเภท
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
+            -- TODO: เพิ่ม document counts เมื่อสร้างตาราง document_files และ document_types แล้ว
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
             
         FROM term_subjects ts
         JOIN subjects s ON ts.subject_id = s.id
         LEFT JOIN programs p ON s.program_id = p.id
         LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
         LEFT JOIN users u ON tsp.user_id = u.id
-        LEFT JOIN document_files df ON ts.id = df.term_subject_id
-        LEFT JOIN document_types dt ON df.document_type_id = dt.id
+        -- LEFT JOIN document_files df ON ts.id = df.term_subject_id
+        -- LEFT JOIN document_types dt ON df.document_type_id = dt.id
         
         WHERE ts.term_id = $1
           AND EXISTS (
@@ -493,7 +498,9 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
  * @param {boolean} isProfessor - true ถ้า user เป็น Professor
  * @returns {Promise<Array>} รายการรายวิชาใน active term
  */
-export async function findActiveTermSubjectsWithStatus(client, userId = null, isProfessor = false) {
+export async function findActiveTermSubjectsWithStatus(client, termId, userId = null, isProfessor = false) {
+    console.log('[findActiveTermSubjectsWithStatus] 📊 Parameters:', { termId, userId, isProfessor });
+    
     // ถ้าเป็น Professor ต้องกรองเฉพาะวิชาที่สอน
     const professorFilter = isProfessor
         ? `AND EXISTS (
@@ -512,6 +519,7 @@ export async function findActiveTermSubjectsWithStatus(client, userId = null, is
             ts.outline_status,
             ts.outline_approved,
             ts.workload_status,
+            ts.workload_approved,
             ts.report_status,
             ts.report_approved,
             
@@ -533,7 +541,7 @@ export async function findActiveTermSubjectsWithStatus(client, userId = null, is
             -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
             COALESCE(
                 json_agg(
-                    DISTINCT jsonb_build_object(
+                    jsonb_build_object(
                         'user_id', tsp.user_id,
                         'email', u.email,
                         'first_name_th', u.first_name_th,
@@ -543,12 +551,12 @@ export async function findActiveTermSubjectsWithStatus(client, userId = null, is
                     ) ORDER BY tsp.user_id
                 ) FILTER (WHERE tsp.user_id IS NOT NULL),
                 '[]'
-            ) as professors,
+            ) as professors
             
-            -- นับจำนวนเอกสารแต่ละประเภท
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
-            COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
+            -- TODO: เพิ่ม document counts เมื่อสร้างตาราง document_files และ document_types แล้ว
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'outline' THEN df.id END) as outline_file_count,
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'workload' THEN df.id END) as workload_file_count,
+            -- COUNT(DISTINCT CASE WHEN dt.type_name = 'report' THEN df.id END) as report_file_count
             
         FROM terms t
         JOIN term_subjects ts ON t.id = ts.term_id
@@ -556,10 +564,10 @@ export async function findActiveTermSubjectsWithStatus(client, userId = null, is
         LEFT JOIN programs p ON s.program_id = p.id
         LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
         LEFT JOIN users u ON tsp.user_id = u.id
-        LEFT JOIN document_files df ON ts.id = df.term_subject_id
-        LEFT JOIN document_types dt ON df.document_type_id = dt.id
+        -- LEFT JOIN document_files df ON ts.id = df.term_subject_id
+        -- LEFT JOIN document_types dt ON df.document_type_id = dt.id
         
-        WHERE t.is_active = true
+        WHERE t.id = $${isProfessor && userId ? 2 : 1}
         ${professorFilter}
         
         GROUP BY 
@@ -573,7 +581,88 @@ export async function findActiveTermSubjectsWithStatus(client, userId = null, is
         ORDER BY s.code_eng, s.code_th
     `;
 
-    const params = isProfessor && userId ? [userId] : [];
-    const result = await client.query(sql, params);
+    const params = isProfessor && userId ? [userId, termId] : [termId];
+    console.log('[findActiveTermSubjectsWithStatus] 🎯 SQL params:', params);
+    console.log('[findActiveTermSubjectsWithStatus] 📝 Executing query...');
+    
+    try {
+        const result = await client.query(sql, params);
+        console.log('[findActiveTermSubjectsWithStatus] ✅ Found', result.rows.length, 'subjects');
+        return result.rows;
+    } catch (error) {
+        console.error('[findActiveTermSubjectsWithStatus] ❌ SQL Error:', error.message);
+        console.error('[findActiveTermSubjectsWithStatus] SQL:', sql);
+        console.error('[findActiveTermSubjectsWithStatus] Params:', params);
+        throw error;
+    }
+}
+
+/**
+ * Get subjects assigned to a specific professor
+ * Returns all term_subjects that the professor is assigned to
+ * 
+ * @param {Object} client - Database client
+ * @param {number} userId - Professor's user ID
+ * @returns {Promise<Array>} - Array of term subjects with full details
+ */
+export async function findSubjectsByProfessorId(client, userId) {
+    const sql = `
+        SELECT 
+            ts.id as term_subject_id,
+            ts.term_id,
+            ts.subject_id,
+            ts.is_active,
+            ts.outline_status,
+            ts.outline_approved,
+            ts.workload_status,
+            ts.workload_approved,
+            ts.report_status,
+            ts.report_approved,
+            ts.created_at,
+            t.id as term_id,
+            t.term_name,
+            t.academic_year,
+            t.is_active as term_is_active,
+            s.id as subject_id,
+            s.code_th,
+            s.code_eng,
+            s.name_th,
+            s.name_eng,
+            s.credit,
+            tsp.created_at as assigned_at
+        FROM term_subjects_professor tsp
+        JOIN term_subjects ts ON tsp.term_subject_id = ts.id
+        JOIN terms t ON ts.term_id = t.id
+        JOIN subjects s ON ts.subject_id = s.id
+        WHERE tsp.user_id = $1
+          AND ts.is_active = true
+        ORDER BY t.academic_year DESC, t.term_name, s.code_eng
+    `;
+    
+    const result = await client.query(sql, [userId]);
     return result.rows;
+}
+
+/**
+ * Update workload submission status
+ * Used when professor submits, academic officer approves/rejects
+ * 
+ * @param {Object} client - Database client
+ * @param {number} termSubjectId - Term Subject ID
+ * @param {string} status - Status: 'pending', 'submitted', 'approved'
+ * @param {number} userId - User ID making the change
+ * @returns {Promise<Object>} - Updated term subject
+ */
+export async function updateWorkloadStatus(client, termSubjectId, status, userId) {
+    const sql = `
+        UPDATE term_subjects
+        SET workload_approved = $1,
+            updated_at = NOW(),
+            updated_by = $2
+        WHERE id = $3
+        RETURNING *
+    `;
+    
+    const result = await client.query(sql, [status, userId, termSubjectId]);
+    return result.rows[0];
 }

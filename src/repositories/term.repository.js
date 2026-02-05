@@ -213,6 +213,63 @@ export async function findActiveTerms() {
 }
 
 /**
+ * Find current active term (automatic by date)
+ * Logic: 
+ * 1. หาภาคการศึกษาที่วันที่ปัจจุบันอยู่ระหว่าง start_date ถึง end_date
+ * 2. ถ้าไม่มี ให้เอาภาคการศึกษาที่ใหม่สุด (เรียงตาม academic_year, semester DESC)
+ */
+export async function findCurrentTerm() {
+    console.log('[findCurrentTerm] 🔍 Starting query...');
+    const sql = `
+        WITH current_term AS (
+            -- หาเทอมที่วันที่ปัจจุบันอยู่ในช่วง
+            SELECT 
+                t.*,
+                COALESCE(COUNT(ts.id), 0) as subject_count,
+                1 as priority
+            FROM terms t
+            LEFT JOIN term_subjects ts ON t.id = ts.term_id
+            WHERE CURRENT_DATE BETWEEN t.term_start_date AND t.term_end_date
+            GROUP BY t.id
+        ),
+        latest_term AS (
+            -- ถ้าไม่มีเทอมปัจจุบัน ให้เอาเทอมที่ใหม่สุด
+            SELECT 
+                t.*,
+                COALESCE(COUNT(ts.id), 0) as subject_count,
+                2 as priority
+            FROM terms t
+            LEFT JOIN term_subjects ts ON t.id = ts.term_id
+            GROUP BY t.id
+            ORDER BY t.academic_year DESC, t.academic_sector DESC
+            LIMIT 1
+        )
+        SELECT * FROM current_term
+        UNION ALL
+        SELECT * FROM latest_term
+        ORDER BY priority
+        LIMIT 1
+    `;
+    try {
+        const result = await pool.query(sql);
+        console.log('[findCurrentTerm] ✅ Query result:', result.rows.length, 'rows');
+        if (result.rows[0]) {
+            console.log('[findCurrentTerm] 📅 Found term:', {
+                id: result.rows[0].id,
+                year: result.rows[0].academic_year,
+                sector: result.rows[0].academic_sector,
+                priority: result.rows[0].priority
+            });
+        }
+        return result.rows[0] || null;
+    } catch (error) {
+        console.error('[findCurrentTerm] ❌ SQL Error:', error.message);
+        console.error('[findCurrentTerm] SQL:', sql);
+        throw error;
+    }
+}
+
+/**
  * Find ended terms
  */
 export async function findEndedTerms() {

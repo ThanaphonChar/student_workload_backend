@@ -328,13 +328,13 @@ export async function removeLecturer(req, res) {
 }
 
 /**
- * @route   GET /api/terms/:termId/subjects/status
+ * @route   GET /api/terms/:id/subjects/status
  * @desc    ดึงข้อมูลสถานะรายวิชาในเทอม (แยกตาม role)
  * @access  Protected (All authenticated users)
  */
 export async function getCourseStatus(req, res) {
     try {
-        const termId = parseInt(req.params.termId);
+        const termId = parseInt(req.params.id); // เปลี่ยนจาก termId เป็น id
 
         if (isNaN(termId)) {
             return res.status(400).json({
@@ -363,7 +363,9 @@ export async function getCourseStatus(req, res) {
  */
 export async function getActiveCourseStatus(req, res) {
     try {
+        console.log('[getActiveCourseStatus] 🚀 Starting with user:', req.user?.id);
         const result = await termSubjectService.getActiveTermSubjectsStatus(req.user);
+        console.log('[getActiveCourseStatus] ✅ Success, term:', result.term?.id, 'subjects:', result.subjects?.length);
 
         res.status(200).json({
             success: true,
@@ -372,6 +374,12 @@ export async function getActiveCourseStatus(req, res) {
             data: result.subjects,
         });
     } catch (error) {
+        console.error('[getActiveCourseStatus] ❌ ERROR Details:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            name: error.name
+        });
         handleError(res, error);
     }
 }
@@ -385,6 +393,8 @@ export async function assignProfessor(req, res) {
     try {
         const termSubjectId = parseInt(req.params.id);
         const { professor_id } = req.body;
+
+        console.log('[assignProfessor] 📥 Request:', { termSubjectId, professor_id, userId: req.user?.id });
 
         if (isNaN(termSubjectId)) {
             return res.status(400).json({
@@ -406,12 +416,19 @@ export async function assignProfessor(req, res) {
             req.user.id
         );
 
+        console.log('[assignProfessor] ✅ Success:', assignment);
+
         res.status(201).json({
             success: true,
             message: 'Professor assigned successfully',
             data: assignment,
         });
     } catch (error) {
+        console.error('[assignProfessor] ❌ Error:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         handleError(res, error);
     }
 }
@@ -440,6 +457,119 @@ export async function getTermSubjectDetail(req, res) {
         });
     } catch (error) {
         handleError(res, error);
+    }
+}
+
+/**
+ * @route   GET /api/my-subjects
+ * @desc    Get all subjects assigned to the logged-in professor
+ * @access  Protected (Professor only)
+ */
+export async function getMySubjects(req, res) {
+    try {
+        console.log('[Term Subject Controller] 📥 Get my subjects request from user:', req.user.id);
+        
+        const subjects = await termSubjectService.getMySubjects(req.user.id);
+        
+        return res.status(200).json({
+            success: true,
+            count: subjects.length,
+            data: subjects,
+        });
+        
+    } catch (error) {
+        return handleError(res, error);
+    }
+}
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/submit-workload
+ * @desc    Submit workload for approval (Professor only)
+ * @access  Protected (Professor)
+ */
+export async function submitWorkload(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.termSubjectId);
+        
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        const userId = req.user.id;
+
+        const updated = await termSubjectService.submitWorkload(termSubjectId, userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Workload submitted for approval successfully',
+            data: updated,
+        });
+    } catch (error) {
+        return handleError(res, error);
+    }
+}
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/approve-workload
+ * @desc    Approve workload submission (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ */
+export async function approveWorkload(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.termSubjectId);
+        
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        const userId = req.user.id;
+
+        const updated = await termSubjectService.approveWorkload(termSubjectId, userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Workload approved successfully',
+            data: updated,
+        });
+    } catch (error) {
+        return handleError(res, error);
+    }
+}
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/reject-workload
+ * @desc    Reject workload submission (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ */
+export async function rejectWorkload(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.termSubjectId);
+        
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        const userId = req.user.id;
+        const { reason } = req.body; // Optional rejection reason
+
+        const updated = await termSubjectService.rejectWorkload(termSubjectId, userId, reason);
+
+        res.status(200).json({
+            success: true,
+            message: 'Workload rejected and status reset to pending',
+            data: updated,
+        });
+    } catch (error) {
+        return handleError(res, error);
     }
 }
 

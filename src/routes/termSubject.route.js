@@ -114,4 +114,31 @@ router.patch('/lecturers/:assignmentId', authorizeRoles(ROLES.ACADEMIC_OFFICER),
  */
 router.delete('/lecturers/:assignmentId', authorizeRoles(ROLES.ACADEMIC_OFFICER), termSubjectController.removeLecturer);
 
+/**
+ * ==========================================
+ * Workload Submission Management Routes
+ * ==========================================
+ */
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/submit-workload
+ * @desc    Submit workload for approval (Professor only)
+ * @access  Protected (Professor)
+ */
+router.post('/:termSubjectId/submit-workload', authorizeRoles(ROLES.PROFESSOR), termSubjectController.submitWorkload);
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/approve-workload
+ * @desc    Approve workload submission (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ */
+router.post('/:termSubjectId/approve-workload', authorizeRoles(ROLES.ACADEMIC_OFFICER), termSubjectController.approveWorkload);
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/reject-workload
+ * @desc    Reject workload submission (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ */
+router.post('/:termSubjectId/reject-workload', authorizeRoles(ROLES.ACADEMIC_OFFICER), termSubjectController.rejectWorkload);
+
 export default router;
