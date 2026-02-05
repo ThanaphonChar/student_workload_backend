@@ -122,7 +122,7 @@ export async function findUsersByRole(roleName) {
           AND u.is_active = true
         ORDER BY u.first_name_en, u.last_name_en
     `;
-    
+
     const result = await pool.query(sql, [roleName]);
     return result.rows;
 }

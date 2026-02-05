@@ -12,11 +12,11 @@ import * as userRepo from '../repositories/user.repository.js';
  */
 export async function getProfessors() {
     console.log('[User Service] 📚 Fetching all professors...');
-    
+
     const professors = await userRepo.findUsersByRole('Professor');
-    
+
     console.log('[User Service] ✅ Found', professors.length, 'professors');
-    
+
     return professors;
 }
 
