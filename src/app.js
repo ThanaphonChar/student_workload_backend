@@ -9,14 +9,39 @@ import routes from './routes/index.js';
 
 const app = express();
 
-// Middleware: Parse JSON bodies
-app.use(express.json());
+// Middleware: CORS Configuration
+// ต้องอยู่ก่อน middleware อื่นๆ เพื่อรองรับ preflight OPTIONS request
+app.use(cors({
+    origin: 'http://localhost:5173', // Frontend URL
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
-// Middleware: Parse URL-encoded bodies
-app.use(express.urlencoded({ extended: true }));
+// Handle preflight OPTIONS requests สำหรับทุก routes
+app.options('*', cors());
 
-// Middleware: Enable CORS
-app.use(cors());
+/**
+ * Middleware: JSON Parser
+ * 
+ * ใช้ type: 'application/json' เพื่อจำกัดให้ parse เฉพาะ JSON content-type
+ * ถ้าเป็น multipart/form-data จะ skip ไป (ให้ multer handle)
+ * 
+ * นี่คือ best practice สำหรับ production Express apps
+ */
+app.use(express.json({
+    type: 'application/json',
+    limit: '50mb'
+}));
+
+/**
+ * Middleware: URL-encoded Parser
+ * สำหรับ form submissions (application/x-www-form-urlencoded)
+ */
+app.use(express.urlencoded({ 
+    extended: true, 
+    limit: '50mb' 
+}));
 
 // Mount API routes
 app.use('/api', routes);
