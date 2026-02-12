@@ -618,3 +618,126 @@ function handleError(res, error) {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
 }
+
+/**
+ * ==========================================
+ * Document Upload Controllers
+ * ==========================================
+ */
+
+/**
+ * @route   POST /api/term-subjects/:id/upload
+ * @desc    อัปโหลดเอกสารสำหรับ term subject
+ * @access  Protected (Professor only - must be assigned to this subject)
+ * 
+ * หน้าที่ของ Controller:
+ * - รับ request และ validate input พื้นฐาน
+ * - เรียก service layer ให้ทำงาน
+ * - ส่ง response กลับไป
+ * 
+ * ไม่มี business logic ที่นี่
+ */
+export async function uploadDocument(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.id);
+        const { document_type } = req.body;
+        const file = req.file; // จาก multer middleware
+        const userId = req.user.id; // จาก auth middleware
+
+        // Validate input พื้นฐาน
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        if (!file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No file uploaded',
+            });
+        }
+
+        if (!document_type) {
+            return res.status(400).json({
+                success: false,
+                message: 'Document type is required',
+            });
+        }
+
+        // Delegate ให้ service จัดการ
+        const document = await termSubjectService.uploadDocument(
+            termSubjectId,
+            document_type,
+            file,
+            userId
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Document uploaded successfully',
+            data: document,
+        });
+
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
+ * @route   GET /api/term-subjects/:id/documents
+ * @desc    ดึงรายการเอกสารทั้งหมดของ term subject
+ * @access  Protected
+ */
+export async function getDocuments(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.id);
+
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        const documents = await termSubjectService.getDocuments(termSubjectId);
+
+        res.status(200).json({
+            success: true,
+            count: documents.length,
+            data: documents,
+        });
+
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
+ * @route   GET /api/term-subjects/:id/documents/latest
+ * @desc    ดึงเอกสารล่าสุดของแต่ละประเภท (outline, report)
+ * @access  Protected
+ */
+export async function getLatestDocuments(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.id);
+
+        if (isNaN(termSubjectId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID',
+            });
+        }
+
+        const documents = await termSubjectService.getLatestDocuments(termSubjectId);
+
+        res.status(200).json({
+            success: true,
+            data: documents,
+        });
+
+    } catch (error) {
+        handleError(res, error);
+    }
+}

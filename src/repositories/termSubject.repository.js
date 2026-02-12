@@ -618,7 +618,7 @@ export async function findSubjectsByProfessorId(client, userId) {
             ts.report_approved,
             ts.created_at,
             t.id as term_id,
-            t.term_name,
+            t.academic_sector,
             t.academic_year,
             t.is_active as term_is_active,
             s.id as subject_id,
@@ -627,14 +627,15 @@ export async function findSubjectsByProfessorId(client, userId) {
             s.name_th,
             s.name_eng,
             s.credit,
-            tsp.created_at as assigned_at
+            tsp.created_at as assigned_at,
+            CONCAT(t.academic_sector, '/', t.academic_year) AS term_name
         FROM term_subjects_professor tsp
         JOIN term_subjects ts ON tsp.term_subject_id = ts.id
         JOIN terms t ON ts.term_id = t.id
         JOIN subjects s ON ts.subject_id = s.id
         WHERE tsp.user_id = $1
           AND ts.is_active = true
-        ORDER BY t.academic_year DESC, t.term_name, s.code_eng
+        ORDER BY t.academic_year DESC, t.academic_sector, s.code_eng
     `;
 
     const result = await client.query(sql, [userId]);
@@ -663,4 +664,82 @@ export async function updateWorkloadStatus(client, termSubjectId, status, userId
 
     const result = await client.query(sql, [status, userId, termSubjectId]);
     return result.rows[0];
+}
+/**
+ * ==========================================
+ * Document Upload Operations
+ * ==========================================
+ */
+
+/**
+ * บันทึก metadata ของไฟล์ที่อัปโหลด
+ * 
+ * @param {Object} client - Database client
+ * @param {number} termSubjectId - ID ของ term subject
+ * @param {string} documentType - ประเภทเอกสาร: 'outline', 'workload', 'report'
+ * @param {string} filePath - path ของไฟล์ที่เก็บ
+ * @param {string} originalName - ชื่อไฟล์ต้นฉบับ
+ * @param {number} userId - ID ของผู้อัปโหลด
+ * @returns {Promise<Object>} - Document record
+ */
+export async function saveDocumentMetadata(client, termSubjectId, documentType, filePath, originalName, userId) {
+    const sql = `
+        INSERT INTO term_subject_documents (
+            term_subject_id,
+            document_type,
+            file_path,
+            original_name,
+            uploaded_by,
+            uploaded_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW())
+        RETURNING *
+    `;
+
+    const values = [termSubjectId, documentType, filePath, originalName, userId];
+    const result = await client.query(sql, values);
+    return result.rows[0];
+}
+
+/**
+ * ดึงข้อมูลเอกสารทั้งหมดของ term subject
+ * 
+ * @param {Object} client - Database client
+ * @param {number} termSubjectId - ID ของ term subject
+ * @returns {Promise<Array>} - รายการเอกสาร
+ */
+export async function findDocumentsByTermSubject(client, termSubjectId) {
+    const sql = `
+        SELECT 
+            d.*,
+            u.name_th as uploader_name
+        FROM term_subject_documents d
+        LEFT JOIN users u ON d.uploaded_by = u.id
+        WHERE d.term_subject_id = $1
+        ORDER BY d.uploaded_at DESC
+    `;
+
+    const result = await client.query(sql, [termSubjectId]);
+    return result.rows;
+}
+
+/**
+ * ดึงเอกสารล่าสุดของแต่ละประเภท
+ * 
+ * @param {Object} client - Database client
+ * @param {number} termSubjectId - ID ของ term subject
+ * @param {string} documentType - ประเภทเอกสาร
+ * @returns {Promise<Object|null>} - เอกสารล่าสุด หรือ null
+ */
+export async function findLatestDocumentByType(client, termSubjectId, documentType) {
+    const sql = `
+        SELECT *
+        FROM term_subject_documents
+        WHERE term_subject_id = $1 
+          AND document_type = $2
+        ORDER BY uploaded_at DESC
+        LIMIT 1
+    `;
+
+    const result = await client.query(sql, [termSubjectId, documentType]);
+    return result.rows[0] || null;
 }

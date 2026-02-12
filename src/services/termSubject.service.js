@@ -8,6 +8,8 @@ import { pool } from '../config/db.js';
 import * as termSubjectRepo from '../repositories/termSubject.repository.js';
 import * as termRepo from '../repositories/term.repository.js';
 import { BusinessError } from '../utils/termValidation.js';
+import path from 'path';
+import fs from 'fs';
 
 /**
  * Add subject to term
@@ -721,4 +723,158 @@ export async function rejectWorkload(termSubjectId, userId, reason = null) {
     }
 }
 
+/**
+ * ==========================================
+ * Document Upload Operations
+ * ==========================================
+ */
+
+/**
+ * อัปโหลดเอกสารสำหรับ term subject
+ * 
+ * หน้าที่:
+ * 1. Validate term subject exists
+ * 2. Verify professor authorization (เฉพาะอาจารย์ที่ assigned เท่านั้น)
+ * 3. บันทึก file metadata ลง database
+ * 
+ * @param {number} termSubjectId - ID ของ term subject
+ * @param {string} documentType - ประเภทเอกสาร: 'outline', 'workload', 'report'
+ * @param {Object} file - ข้อมูลไฟล์จาก multer
+ * @param {number} userId - ID ของผู้อัปโหลด
+ * @returns {Promise<Object>} - Document record พร้อม metadata
+ */
+export async function uploadDocument(termSubjectId, documentType, file, userId) {
+    const client = await pool.connect();
+    
+    try {
+        // 1. ตรวจสอบว่า term subject มีอยู่จริง
+        const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
+        if (!termSubject) {
+            throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
+        }
+
+        // 2. ตรวจสอบว่า user เป็น professor ที่ assigned หรือไม่
+        const professors = await termSubjectRepo.findProfessorsByTermSubject(client, termSubjectId);
+        const isAssigned = professors.some(prof => prof.user_id === userId);
+        
+        if (!isAssigned) {
+            throw new BusinessError(
+                'You are not authorized to upload documents for this subject',
+                'UNAUTHORIZED_UPLOAD',
+                403
+            );
+        }
+
+        // 3. Validate document type
+        const validTypes = ['outline', 'report'];
+        if (!validTypes.includes(documentType)) {
+            throw new BusinessError(
+                `Invalid document type. Must be one of: ${validTypes.join(', ')}`,
+                'INVALID_DOCUMENT_TYPE',
+                400
+            );
+        }
+
+        // 4. เขียนไฟล์ลง disk (หลังจากรู้ document_type แล้ว)
+        const timestamp = Date.now();
+        const ext = path.extname(file.originalname);
+        const filename = `${documentType}-${timestamp}${ext}`;
+        
+        // สร้าง path: uploads/term-subjects/{id}/{document_type}/
+        const uploadDir = path.join(process.cwd(), 'uploads', 'term-subjects', String(termSubjectId), documentType);
+        
+        // สร้างโฟลเดอร์ถ้ายังไม่มี
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        
+        const filePath = path.join(uploadDir, filename);
+        
+        // เขียนไฟล์จาก buffer (memory) ลง disk
+        fs.writeFileSync(filePath, file.buffer);
+
+        await client.query('BEGIN');
+
+        // 5. บันทึก metadata ลง database
+        // เก็บแค่ relative path จาก project root
+        const relativePath = filePath.replace(process.cwd() + '/', '');
+        
+        const document = await termSubjectRepo.saveDocumentMetadata(
+            client,
+            termSubjectId,
+            documentType,
+            relativePath,
+            file.originalname,
+            userId
+        );
+
+        await client.query('COMMIT');
+
+        console.log(`[uploadDocument] ✅ Document uploaded: ${documentType} for term_subject_id=${termSubjectId}`);
+        console.log(`[uploadDocument] 📁 File saved to: ${relativePath}`);
+        return document;
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('[uploadDocument] ❌ Error:', error.message);
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+/**
+ * ดึงรายการเอกสารทั้งหมดของ term subject
+ * 
+ * @param {number} termSubjectId - ID ของ term subject
+ * @returns {Promise<Array>} - รายการเอกสาร
+ */
+export async function getDocuments(termSubjectId) {
+    const client = await pool.connect();
+    
+    try {
+        const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
+        if (!termSubject) {
+            throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
+        }
+
+        const documents = await termSubjectRepo.findDocumentsByTermSubject(client, termSubjectId);
+        return documents;
+        
+    } finally {
+        client.release();
+    }
+}
+
+/**
+ * ดึงเอกสารล่าสุดของแต่ละประเภท
+ * ใช้สำหรับแสดงว่ามีเอกสารอะไรอัปโหลดแล้วบ้าง
+ * 
+ * @param {number} termSubjectId - ID ของ term subject
+ * @returns {Promise<Object>} - Object ที่มี key เป็น document type
+ */
+export async function getLatestDocuments(termSubjectId) {
+    const client = await pool.connect();
+    
+    try {
+        const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
+        if (!termSubject) {
+            throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
+        }
+
+        // ดึงเอกสารล่าสุดของแต่ละประเภท (เฉพาะเอกสารที่อัปโหลด)
+        const [outline, report] = await Promise.all([
+            termSubjectRepo.findLatestDocumentByType(client, termSubjectId, 'outline'),
+            termSubjectRepo.findLatestDocumentByType(client, termSubjectId, 'report')
+        ]);
+
+        return {
+            outline,
+            report
+        };
+        
+    } finally {
+        client.release();
+    }
+}
 

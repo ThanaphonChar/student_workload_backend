@@ -7,11 +7,27 @@ import express from 'express';
 import * as termSubjectController from '../controllers/termSubject.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 import { authorizeRoles, ROLES } from '../middlewares/role.middleware.js';
+import { uploadSingleFile } from '../middlewares/upload.middleware.js';
 
 const router = express.Router();
 
 /**
- * All routes require authentication
+ * Upload routes - ต้องอยู่ก่อน authMiddleware และ express.json()
+ * เพราะ multer ต้อง parse multipart/form-data เอง
+ */
+router.post(
+    '/:id/upload',
+    uploadSingleFile,
+    authMiddleware,
+    authorizeRoles(ROLES.PROFESSOR),
+    termSubjectController.uploadDocument
+);
+
+router.get('/:id/documents', authMiddleware, termSubjectController.getDocuments);
+router.get('/:id/documents/latest', authMiddleware, termSubjectController.getLatestDocuments);
+
+/**
+ * All other routes require authentication
  */
 router.use(authMiddleware);
 
