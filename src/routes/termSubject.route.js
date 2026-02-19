@@ -5,6 +5,7 @@
 
 import express from 'express';
 import * as termSubjectController from '../controllers/termSubject.controller.js';
+import * as workController from '../controllers/work.controller.js';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 import { authorizeRoles, ROLES } from '../middlewares/role.middleware.js';
 import { uploadSingleFile } from '../middlewares/upload.middleware.js';
@@ -156,5 +157,76 @@ router.post('/:termSubjectId/approve-workload', authorizeRoles(ROLES.ACADEMIC_OF
  * @access  Protected (Academic Officer)
  */
 router.post('/:termSubjectId/reject-workload', authorizeRoles(ROLES.ACADEMIC_OFFICER), termSubjectController.rejectWorkload);
+
+/**
+ * ==========================================
+ * Workload Details Management Routes (NEW)
+ * ==========================================
+ * 
+ * เพิ่มรายละเอียดภาระงาน (work_details) โดย Academic Officer
+ * ใช้สำหรับการกำหนดรายละเอียดภาระงานให้กับแต่ละ term_subject
+ */
+
+/**
+ * @route   POST /api/term-subjects/:termSubjectId/works
+ * @desc    สร้างรายละเอียดภาระงานใหม่ (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ * 
+ * Body:
+ * {
+ *   "work_title": "string (required)",
+ *   "description": "string (optional)",
+ *   "start_date": "YYYY-MM-DD (required)",
+ *   "end_date": "YYYY-MM-DD (required)",
+ *   "hours_per_week": "integer (required, > 0)"
+ * }
+ */
+router.post(
+    '/:termSubjectId/works',
+    authMiddleware,
+    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    workController.createWork
+);
+
+/**
+ * @route   GET /api/term-subjects/:termSubjectId/works
+ * @desc    ดึงรายละเอียดภาระงานของ term_subject
+ * @access  Protected
+ * 
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": { workload object } หรือ null ถ้าไม่มี
+ * }
+ */
+router.get(
+    '/:termSubjectId/works',
+    authMiddleware,
+    workController.getWorkByTermSubject
+);
+
+/**
+ * @route   PUT /api/term-subjects/:termSubjectId/works/:workId
+ * @desc    อัพเดทรายละเอียดภาระงาน (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ */
+router.put(
+    '/:termSubjectId/works/:workId',
+    authMiddleware,
+    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    workController.updateWork
+);
+
+/**
+ * @route   DELETE /api/term-subjects/:termSubjectId/works/:workId
+ * @desc    ลบรายละเอียดภาระงาน (Academic Officer only)
+ * @access  Protected (Academic Officer)
+ */
+router.delete(
+    '/:termSubjectId/works/:workId',
+    authMiddleware,
+    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    workController.deleteWork
+);
 
 export default router;
