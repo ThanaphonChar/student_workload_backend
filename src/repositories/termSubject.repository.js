@@ -365,18 +365,30 @@ export async function findTermSubjectsWithStatus(client, termId) {
             -- ข้อมูลหลักสูตร
             p.program_year,
             
-            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
+            -- ชั้นปีที่เรียนวิชา
             COALESCE(
-                json_agg(
-                    jsonb_build_object(
-                        'user_id', tsp.user_id,
-                        'email', u.email,
-                        'first_name_th', u.first_name_th,
-                        'last_name_th', u.last_name_th,
-                        'first_name_en', u.first_name_en,
-                        'last_name_en', u.last_name_en
-                    ) ORDER BY tsp.user_id
-                ) FILTER (WHERE tsp.user_id IS NOT NULL),
+                ARRAY_AGG(DISTINCT ssy.student_year_id) FILTER (WHERE ssy.student_year_id IS NOT NULL),
+                '{}'
+            ) as student_year_ids,
+            
+            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array) - ใช้ subquery แทน
+            COALESCE(
+                (
+                    SELECT json_agg(prof_data ORDER BY (prof_data->>'user_id')::int)
+                    FROM (
+                        SELECT DISTINCT jsonb_build_object(
+                            'user_id', tsp2.user_id,
+                            'email', u2.email,
+                            'first_name_th', u2.first_name_th,
+                            'last_name_th', u2.last_name_th,
+                            'first_name_en', u2.first_name_en,
+                            'last_name_en', u2.last_name_en
+                        ) as prof_data
+                        FROM term_subjects_professor tsp2
+                        JOIN users u2 ON tsp2.user_id = u2.id
+                        WHERE tsp2.term_subject_id = ts.id
+                    ) profs
+                ),
                 '[]'
             ) as professors
             
@@ -388,8 +400,7 @@ export async function findTermSubjectsWithStatus(client, termId) {
         FROM term_subjects ts
         JOIN subjects s ON ts.subject_id = s.id
         LEFT JOIN programs p ON s.program_id = p.id
-        LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
-        LEFT JOIN users u ON tsp.user_id = u.id
+        LEFT JOIN subjects_student_years ssy ON s.id = ssy.subject_id
         -- LEFT JOIN document_files df ON ts.id = df.term_subject_id
         -- LEFT JOIN document_types dt ON df.document_type_id = dt.id
         
@@ -441,18 +452,30 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
             -- ข้อมูลหลักสูตร
             p.program_year,
             
-            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
+            -- ชั้นปีที่เรียนวิชา
             COALESCE(
-                json_agg(
-                    jsonb_build_object(
-                        'user_id', tsp.user_id,
-                        'email', u.email,
-                        'first_name_th', u.first_name_th,
-                        'last_name_th', u.last_name_th,
-                        'first_name_en', u.first_name_en,
-                        'last_name_en', u.last_name_en
-                    ) ORDER BY tsp.user_id
-                ) FILTER (WHERE tsp.user_id IS NOT NULL),
+                ARRAY_AGG(DISTINCT ssy.student_year_id) FILTER (WHERE ssy.student_year_id IS NOT NULL),
+                '{}'
+            ) as student_year_ids,
+            
+            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array) - ใช้ subquery แทน
+            COALESCE(
+                (
+                    SELECT json_agg(prof_data ORDER BY (prof_data->>'user_id')::int)
+                    FROM (
+                        SELECT DISTINCT jsonb_build_object(
+                            'user_id', tsp2.user_id,
+                            'email', u2.email,
+                            'first_name_th', u2.first_name_th,
+                            'last_name_th', u2.last_name_th,
+                            'first_name_en', u2.first_name_en,
+                            'last_name_en', u2.last_name_en
+                        ) as prof_data
+                        FROM term_subjects_professor tsp2
+                        JOIN users u2 ON tsp2.user_id = u2.id
+                        WHERE tsp2.term_subject_id = ts.id
+                    ) profs
+                ),
                 '[]'
             ) as professors
             
@@ -464,8 +487,7 @@ export async function findTermSubjectsByProfessor(client, termId, userId) {
         FROM term_subjects ts
         JOIN subjects s ON ts.subject_id = s.id
         LEFT JOIN programs p ON s.program_id = p.id
-        LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
-        LEFT JOIN users u ON tsp.user_id = u.id
+        LEFT JOIN subjects_student_years ssy ON s.id = ssy.subject_id
         -- LEFT JOIN document_files df ON ts.id = df.term_subject_id
         -- LEFT JOIN document_types dt ON df.document_type_id = dt.id
         
@@ -537,18 +559,30 @@ export async function findActiveTermSubjectsWithStatus(client, termId, userId = 
             -- ข้อมูลหลักสูตร
             p.program_year,
             
-            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array)
+            -- ชั้นปีที่เรียนวิชา
             COALESCE(
-                json_agg(
-                    jsonb_build_object(
-                        'user_id', tsp.user_id,
-                        'email', u.email,
-                        'first_name_th', u.first_name_th,
-                        'last_name_th', u.last_name_th,
-                        'first_name_en', u.first_name_en,
-                        'last_name_en', u.last_name_en
-                    ) ORDER BY tsp.user_id
-                ) FILTER (WHERE tsp.user_id IS NOT NULL),
+                ARRAY_AGG(DISTINCT ssy.student_year_id) FILTER (WHERE ssy.student_year_id IS NOT NULL),
+                '{}'
+            ) as student_year_ids,
+            
+            -- รายชื่ออาจารย์ผู้สอน (รวมเป็น array) - ใช้ subquery แทน
+            COALESCE(
+                (
+                    SELECT json_agg(prof_data ORDER BY (prof_data->>'user_id')::int)
+                    FROM (
+                        SELECT DISTINCT jsonb_build_object(
+                            'user_id', tsp2.user_id,
+                            'email', u2.email,
+                            'first_name_th', u2.first_name_th,
+                            'last_name_th', u2.last_name_th,
+                            'first_name_en', u2.first_name_en,
+                            'last_name_en', u2.last_name_en
+                        ) as prof_data
+                        FROM term_subjects_professor tsp2
+                        JOIN users u2 ON tsp2.user_id = u2.id
+                        WHERE tsp2.term_subject_id = ts.id
+                    ) profs
+                ),
                 '[]'
             ) as professors
             
@@ -561,8 +595,7 @@ export async function findActiveTermSubjectsWithStatus(client, termId, userId = 
         JOIN term_subjects ts ON t.id = ts.term_id
         JOIN subjects s ON ts.subject_id = s.id
         LEFT JOIN programs p ON s.program_id = p.id
-        LEFT JOIN term_subjects_professor tsp ON ts.id = tsp.term_subject_id
-        LEFT JOIN users u ON tsp.user_id = u.id
+        LEFT JOIN subjects_student_years ssy ON s.id = ssy.subject_id
         -- LEFT JOIN document_files df ON ts.id = df.term_subject_id
         -- LEFT JOIN document_types dt ON df.document_type_id = dt.id
         

@@ -352,3 +352,29 @@ export async function validateSubjectIds(req, res) {
         });
     }
 }
+
+/**
+ * Get student years for a subject
+ * GET /api/subjects/:id/student-years
+ */
+export async function getSubjectStudentYears(req, res) {
+    try {
+        const { id } = req.params;
+
+        console.log('[Subject] 🔍 Getting student years for subject:', id);
+
+        const studentYearIds = await subjectService.getSubjectStudentYears(parseInt(id));
+
+        res.status(200).json({
+            success: true,
+            data: studentYearIds,
+        });
+    } catch (error) {
+        console.error('[Subject] ❌ Get student years error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get student years',
+            error: error.message,
+        });
+    }
+}

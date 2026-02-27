@@ -12,7 +12,7 @@ const app = express();
 // Middleware: CORS Configuration
 // ต้องอยู่ก่อน middleware อื่นๆ เพื่อรองรับ preflight OPTIONS request
 app.use(cors({
-    origin: 'http://localhost:5173', // Frontend URL
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -38,9 +38,9 @@ app.use(express.json({
  * Middleware: URL-encoded Parser
  * สำหรับ form submissions (application/x-www-form-urlencoded)
  */
-app.use(express.urlencoded({ 
-    extended: true, 
-    limit: '50mb' 
+app.use(express.urlencoded({
+    extended: true,
+    limit: '50mb'
 }));
 
 // Mount API routes

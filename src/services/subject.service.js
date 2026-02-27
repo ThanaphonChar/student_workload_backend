@@ -369,6 +369,23 @@ export async function studentYearExists(studentYearId) {
 }
 
 /**
+ * Get student year IDs for a subject
+ * @param {number} subjectId - Subject ID
+ * @returns {Promise<Array<number>>} Array of student year IDs
+ */
+export async function getSubjectStudentYears(subjectId) {
+    const sql = `
+        SELECT sy.id
+        FROM subjects_student_years ssy
+        JOIN student_years sy ON ssy.student_year_id = sy.id
+        WHERE ssy.subject_id = $1
+        ORDER BY sy.student_year ASC
+    `;
+    const result = await query(sql, [subjectId]);
+    return result.rows.map(row => row.id);
+}
+
+/**
  * Insert subject-student_year relationships
  * @param {number} subjectId - Subject ID
  * @param {Array<number>} studentYearIds - Array of Student Year IDs
@@ -385,11 +402,11 @@ async function insertSubjectStudentYears(subjectId, studentYearIds) {
         console.log('[Subject Service] 📝 Inserting junction records:', { subjectId, yearIds });
 
         const values = yearIds
-            .map((_, index) => `($1, $${index + 2}, NOW())`)
+            .map((_, index) => `($1, $${index + 2})`)
             .join(', ');
 
         const sql = `
-            INSERT INTO subjects_student_years (subject_id, student_year_id, created_at)
+            INSERT INTO subjects_student_years (subject_id, student_year_id)
             VALUES ${values}
         `;
 
