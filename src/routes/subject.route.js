@@ -44,6 +44,17 @@ router.get(
 );
 
 /**
+ * @route   GET /api/subjects/:id/student-years
+ * @desc    ดึงรายการ student year IDs ของวิชา
+ * @access  Professor, Program Chair, Academic Officer
+ */
+router.get(
+    '/:id/student-years',
+    authorizeRoles(ROLES.PROFESSOR, ROLES.PROGRAM_CHAIR, ROLES.ACADEMIC_OFFICER),
+    subjectController.getSubjectStudentYears
+);
+
+/**
  * @route   POST /api/subjects
  * @desc    สร้างวิชาใหม่
  * @access  Program Chair, Academic Officer only

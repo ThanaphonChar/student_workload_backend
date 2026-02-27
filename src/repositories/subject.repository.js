@@ -84,6 +84,22 @@ export async function deleteSubjectStudentYears(client, subjectId) {
 }
 
 /**
+ * ดึงรายการ student_year_ids ของ subject
+ * @param {number} subjectId - ID ของ subject
+ * @returns {Promise<Array<number>>} Array ของ student_year IDs
+ */
+export async function findStudentYearsBySubjectId(subjectId) {
+    const sql = `
+        SELECT ssy.student_year_id
+        FROM subjects_student_years ssy
+        WHERE ssy.subject_id = $1
+        ORDER BY ssy.student_year_id ASC
+    `;
+    const result = await query(sql, [subjectId]);
+    return result.rows.map(row => row.student_year_id);
+}
+
+/**
  * ดึงข้อมูล subject ทั้งหมด พร้อม student_years
  * @param {Object} filters - Filter options (program_id, student_year_id, is_active)
  * @returns {Promise<Array>} Array ของ subjects

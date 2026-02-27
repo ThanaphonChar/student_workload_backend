@@ -6,6 +6,7 @@ import termRoute from './term.route.js';
 import termSubjectRoute from './termSubject.route.js';
 import userRoute from './user.route.js';
 import mySubjectsRoute from './mySubjects.route.js';
+import dashboardRoute from './dashboard.route.js';
 
 const router = express.Router();
 
@@ -34,5 +35,8 @@ router.use('/term-subjects', termSubjectRoute);
 
 // My subjects route (protected - professor only)
 router.use('/my-subjects', mySubjectsRoute);
+
+// Dashboard route (protected - academic officer only)
+router.use('/dashboard', dashboardRoute);
 
 export default router;
