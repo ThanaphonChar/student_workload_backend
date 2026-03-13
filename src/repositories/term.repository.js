@@ -7,6 +7,32 @@
 import { pool } from '../config/db.js';
 
 /**
+ * Get distinct academic years from terms table
+ */
+export async function getDistinctAcademicYears() {
+    const sql = `
+        SELECT DISTINCT academic_year
+        FROM terms
+        ORDER BY academic_year DESC
+    `;
+    const result = await pool.query(sql);
+    return result.rows.map(row => row.academic_year);
+}
+
+/**
+ * Get distinct academic sectors from terms table
+ */
+export async function getDistinctAcademicSectors() {
+    const sql = `
+        SELECT DISTINCT academic_sector
+        FROM terms
+        ORDER BY academic_sector ASC
+    `;
+    const result = await pool.query(sql);
+    return result.rows.map(row => row.academic_sector);
+}
+
+/**
  * Insert new academic term
  */
 export async function insertTerm(client, termData, userId) {

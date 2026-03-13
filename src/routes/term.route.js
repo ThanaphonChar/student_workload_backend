@@ -17,6 +17,13 @@ const router = express.Router();
 router.use(authMiddleware);
 
 /**
+ * @route   GET /api/terms/filter-options
+ * @desc    Get available filter options (academic years and sectors)
+ * @access  Protected (All authenticated users)
+ */
+router.get('/filter-options', termController.getFilterOptions);
+
+/**
  * @route   GET /api/terms
  * @desc    Get all terms with optional filters
  * @access  Protected (All authenticated users)

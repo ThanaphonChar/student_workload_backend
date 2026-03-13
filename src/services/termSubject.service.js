@@ -11,6 +11,24 @@ import { BusinessError } from '../utils/termValidation.js';
 import path from 'path';
 import fs from 'fs';
 
+function normalizeOriginalFileName(fileName) {
+    if (!fileName || typeof fileName !== 'string') return fileName;
+
+    // แก้เคสชื่อไฟล์ภาษาไทยเพี้ยนจาก encoding (เช่น à¸..., Ã...)
+    if (/[ÃÂà]/.test(fileName)) {
+        try {
+            const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+            if (decoded && decoded !== fileName) {
+                return decoded;
+            }
+        } catch {
+            // fallback to original name
+        }
+    }
+
+    return fileName;
+}
+
 /**
  * Add subject to term
  */
@@ -745,7 +763,7 @@ export async function rejectWorkload(termSubjectId, userId, reason = null) {
  */
 export async function uploadDocument(termSubjectId, documentType, file, userId) {
     const client = await pool.connect();
-    
+
     try {
         // 1. ตรวจสอบว่า term subject มีอยู่จริง
         const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
@@ -756,7 +774,7 @@ export async function uploadDocument(termSubjectId, documentType, file, userId) 
         // 2. ตรวจสอบว่า user เป็น professor ที่ assigned หรือไม่
         const professors = await termSubjectRepo.findProfessorsByTermSubject(client, termSubjectId);
         const isAssigned = professors.some(prof => prof.user_id === userId);
-        
+
         if (!isAssigned) {
             throw new BusinessError(
                 'You are not authorized to upload documents for this subject',
@@ -776,20 +794,21 @@ export async function uploadDocument(termSubjectId, documentType, file, userId) 
         }
 
         // 4. เขียนไฟล์ลง disk (หลังจากรู้ document_type แล้ว)
+        const originalName = normalizeOriginalFileName(file.originalname);
         const timestamp = Date.now();
-        const ext = path.extname(file.originalname);
+        const ext = path.extname(originalName);
         const filename = `${documentType}-${timestamp}${ext}`;
-        
+
         // สร้าง path: uploads/term-subjects/{id}/{document_type}/
         const uploadDir = path.join(process.cwd(), 'uploads', 'term-subjects', String(termSubjectId), documentType);
-        
+
         // สร้างโฟลเดอร์ถ้ายังไม่มี
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
-        
+
         const filePath = path.join(uploadDir, filename);
-        
+
         // เขียนไฟล์จาก buffer (memory) ลง disk
         fs.writeFileSync(filePath, file.buffer);
 
@@ -798,13 +817,22 @@ export async function uploadDocument(termSubjectId, documentType, file, userId) 
         // 5. บันทึก metadata ลง database
         // เก็บแค่ relative path จาก project root
         const relativePath = filePath.replace(process.cwd() + '/', '');
-        
+
         const document = await termSubjectRepo.saveDocumentMetadata(
             client,
             termSubjectId,
             documentType,
             relativePath,
-            file.originalname,
+            originalName,
+            userId
+        );
+
+        // 6. อัปเดตสถานะเอกสารใน term_subjects table
+        const statusField = documentType === 'outline' ? 'outline_status' : 'report_status';
+        await termSubjectRepo.updateTermSubject(
+            client,
+            termSubjectId,
+            { [statusField]: true },
             userId
         );
 
@@ -812,8 +840,9 @@ export async function uploadDocument(termSubjectId, documentType, file, userId) 
 
         console.log(`[uploadDocument] ✅ Document uploaded: ${documentType} for term_subject_id=${termSubjectId}`);
         console.log(`[uploadDocument] 📁 File saved to: ${relativePath}`);
+        console.log(`[uploadDocument] 🔄 Updated ${statusField} to true`);
         return document;
-        
+
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('[uploadDocument] ❌ Error:', error.message);
@@ -831,7 +860,7 @@ export async function uploadDocument(termSubjectId, documentType, file, userId) 
  */
 export async function getDocuments(termSubjectId) {
     const client = await pool.connect();
-    
+
     try {
         const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
         if (!termSubject) {
@@ -840,7 +869,7 @@ export async function getDocuments(termSubjectId) {
 
         const documents = await termSubjectRepo.findDocumentsByTermSubject(client, termSubjectId);
         return documents;
-        
+
     } finally {
         client.release();
     }
@@ -855,7 +884,7 @@ export async function getDocuments(termSubjectId) {
  */
 export async function getLatestDocuments(termSubjectId) {
     const client = await pool.connect();
-    
+
     try {
         const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
         if (!termSubject) {
@@ -872,7 +901,41 @@ export async function getLatestDocuments(termSubjectId) {
             outline,
             report
         };
-        
+
+    } finally {
+        client.release();
+    }
+}
+
+/**
+ * ดึงไฟล์เอกสารสำหรับดู/ดาวน์โหลด พร้อมตรวจสอบสิทธิ์
+ * 
+ * @param {number} termSubjectId - ID ของ term subject
+ * @param {number} documentId - ID ของเอกสาร
+ * @param {Object} user - req.user
+ * @returns {Promise<{document: Object, absolutePath: string}>}
+ */
+export async function getDocumentFile(termSubjectId, documentId, user) {
+    const client = await pool.connect();
+
+    try {
+        // ตรวจสอบสิทธิ์การเข้าถึง term subject
+        await getTermSubjectDetail(termSubjectId, user);
+
+        const document = await termSubjectRepo.findDocumentById(client, termSubjectId, documentId);
+        if (!document) {
+            throw new BusinessError('Document not found', 'DOCUMENT_NOT_FOUND', 404);
+        }
+
+        const absolutePath = path.join(process.cwd(), document.file_path);
+        if (!fs.existsSync(absolutePath)) {
+            throw new BusinessError('Document file not found on server', 'DOCUMENT_FILE_NOT_FOUND', 404);
+        }
+
+        return {
+            document,
+            absolutePath,
+        };
     } finally {
         client.release();
     }

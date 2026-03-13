@@ -26,6 +26,7 @@ router.post(
 
 router.get('/:id/documents', authMiddleware, termSubjectController.getDocuments);
 router.get('/:id/documents/latest', authMiddleware, termSubjectController.getLatestDocuments);
+router.get('/:id/documents/:documentId/file', authMiddleware, termSubjectController.downloadDocument);
 
 /**
  * All other routes require authentication

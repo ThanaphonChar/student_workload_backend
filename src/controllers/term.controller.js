@@ -8,6 +8,24 @@ import * as termService from '../services/term.service.js';
 import { ValidationError, BusinessError } from '../utils/termValidation.js';
 
 /**
+ * @route   GET /api/terms/filter-options
+ * @desc    Get available filter options (academic years and sectors)
+ * @access  Protected
+ */
+export async function getFilterOptions(req, res) {
+    try {
+        const options = await termService.getFilterOptions();
+
+        res.status(200).json({
+            success: true,
+            data: options
+        });
+    } catch (error) {
+        handleError(res, error);
+    }
+}
+
+/**
  * @route   POST /api/terms
  * @desc    Create new academic term
  * @access  Protected (Academic staff only)
@@ -295,7 +313,7 @@ function handleError(res, error) {
 
         // แยกแยะ error message ตาม detail
         let message = 'ข้อมูลอ้างอิงไม่ถูกต้อง';
-        
+
         if (error.detail) {
             if (error.detail.includes('created_by') || error.detail.includes('users')) {
                 message = 'User account ไม่มีอยู่ในระบบ กรุณา logout และ login ใหม่อีกครั้ง (User not found in database)';

@@ -17,6 +17,20 @@ import {
 } from '../utils/termValidation.js';
 
 /**
+ * Get filter options (academic years and sectors)
+ * @returns {Promise<Object>} Filter options
+ */
+export async function getFilterOptions() {
+    const years = await termRepo.getDistinctAcademicYears();
+    const sectors = await termRepo.getDistinctAcademicSectors();
+
+    return {
+        academic_years: years,
+        academic_sectors: sectors
+    };
+}
+
+/**
  * Create new academic term
  * @param {Object} termData - Term data from request
  * @param {Number} userId - ID of user creating the term
@@ -24,7 +38,7 @@ import {
  */
 export async function createTerm(termData, userId) {
     console.log('[createTerm Service] Starting with userId:', userId);
-    
+
     // Step 0: Validate user ID
     if (!userId || typeof userId !== 'number') {
         throw new BusinessError(
@@ -48,7 +62,7 @@ export async function createTerm(termData, userId) {
     if (subjectIds.length > 0) {
         console.log('[createTerm Service] Validating subject IDs...');
         console.log('[createTerm Service] Subject IDs to validate:', JSON.stringify(subjectIds));
-        
+
         const existingSubjects = await subjectRepo.findSubjectsByIds(subjectIds);
         console.log('[createTerm Service] Found existing subjects:', existingSubjects.length);
         console.log('[createTerm Service] Existing subject IDs:', existingSubjects.map(s => s.id));
@@ -73,7 +87,7 @@ export async function createTerm(termData, userId) {
             const inactiveCodes = inactiveSubjects.map(s => s.code_th || s.code_eng).join(', ');
             console.warn('[createTerm Service] ⚠️ Warning: Some subjects are inactive:', inactiveCodes);
         }
-        
+
         console.log('[createTerm Service] ✅ All subject IDs validated successfully');
     }
 
@@ -81,7 +95,7 @@ export async function createTerm(termData, userId) {
     const client = await pool.connect();
     try {
         const userCheck = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
-        
+
         if (userCheck.rows.length === 0) {
             console.error('[createTerm Service] ❌ User not found in database:', userId);
             throw new BusinessError(
@@ -90,7 +104,7 @@ export async function createTerm(termData, userId) {
                 401
             );
         }
-        
+
         console.log('[createTerm Service] ✅ User verified:', userId);
     } finally {
         client.release();

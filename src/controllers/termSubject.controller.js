@@ -741,3 +741,45 @@ export async function getLatestDocuments(req, res) {
         handleError(res, error);
     }
 }
+
+/**
+ * @route   GET /api/term-subjects/:id/documents/:documentId/file
+ * @desc    ดูหรือดาวน์โหลดไฟล์เอกสาร
+ * @access  Protected
+ * 
+ * Query:
+ * - download=1  => force download
+ * - default     => inline view
+ */
+export async function downloadDocument(req, res) {
+    try {
+        const termSubjectId = parseInt(req.params.id);
+        const documentId = parseInt(req.params.documentId);
+        const isDownload = req.query.download === '1';
+
+        if (isNaN(termSubjectId) || isNaN(documentId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid term subject ID or document ID',
+            });
+        }
+
+        const { document, absolutePath } = await termSubjectService.getDocumentFile(
+            termSubjectId,
+            documentId,
+            req.user
+        );
+
+        if (isDownload) {
+            return res.download(absolutePath, document.original_name);
+        }
+
+        res.setHeader(
+            'Content-Disposition',
+            `inline; filename*=UTF-8''${encodeURIComponent(document.original_name)}`
+        );
+        return res.sendFile(absolutePath);
+    } catch (error) {
+        handleError(res, error);
+    }
+}
