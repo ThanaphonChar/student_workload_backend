@@ -776,3 +776,24 @@ export async function findLatestDocumentByType(client, termSubjectId, documentTy
     const result = await client.query(sql, [termSubjectId, documentType]);
     return result.rows[0] || null;
 }
+
+/**
+ * ดึงเอกสารตาม document id โดยผูกกับ term subject
+ * 
+ * @param {Object} client - Database client
+ * @param {number} termSubjectId - ID ของ term subject
+ * @param {number} documentId - ID ของเอกสาร
+ * @returns {Promise<Object|null>} - เอกสาร หรือ null
+ */
+export async function findDocumentById(client, termSubjectId, documentId) {
+    const sql = `
+        SELECT *
+        FROM term_subject_documents
+        WHERE id = $1
+          AND term_subject_id = $2
+        LIMIT 1
+    `;
+
+    const result = await client.query(sql, [documentId, termSubjectId]);
+    return result.rows[0] || null;
+}
