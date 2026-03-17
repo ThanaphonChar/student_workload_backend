@@ -312,6 +312,21 @@ export async function deleteTermSubjectsByTermId(client, termId) {
     return result.rows;
 }
 
+export async function deleteTermSubjectsByTermIdAndSubjectIds(client, termId, subjectIds) {
+    if (!subjectIds || subjectIds.length === 0) {
+        return [];
+    }
+
+    const sql = `
+        DELETE FROM term_subjects
+        WHERE term_id = $1
+          AND subject_id = ANY($2::int[])
+        RETURNING id
+    `;
+    const result = await client.query(sql, [termId, subjectIds]);
+    return result.rows;
+}
+
 /**
  * Replace term subjects (delete old and insert new)
  * Used when updating term's subject list
@@ -319,19 +334,32 @@ export async function deleteTermSubjectsByTermId(client, termId) {
 export async function replaceTermSubjects(client, termId, subjectIds, userId) {
     console.log('[replaceTermSubjects] Called with:', { termId, subjectIds, userId });
 
-    // Delete existing term subjects
-    const deleted = await deleteTermSubjectsByTermId(client, termId);
-    console.log('[replaceTermSubjects] Deleted existing subjects:', deleted.length);
+    const nextSubjectIds = Array.isArray(subjectIds)
+        ? [...new Set(subjectIds.map(id => parseInt(id, 10)).filter(Number.isInteger))]
+        : [];
 
-    // Insert new subjects
-    if (subjectIds && subjectIds.length > 0) {
-        const inserted = await bulkInsertTermSubjects(client, termId, subjectIds, userId);
-        console.log('[replaceTermSubjects] Inserted new subjects:', inserted.length);
-        return inserted;
+    const existingSubjects = await findTermSubjectsByTermId(client, termId);
+    const existingSubjectIds = existingSubjects.map(row => row.subject_id);
+
+    // Keep untouched term_subject rows so existing instructor assignments stay intact.
+    const removedSubjectIds = existingSubjectIds.filter(id => !nextSubjectIds.includes(id));
+    const addedSubjectIds = nextSubjectIds.filter(id => !existingSubjectIds.includes(id));
+
+    if (removedSubjectIds.length > 0) {
+        const deleted = await deleteTermSubjectsByTermIdAndSubjectIds(client, termId, removedSubjectIds);
+        console.log('[replaceTermSubjects] Deleted removed subjects:', deleted.length);
+    } else {
+        console.log('[replaceTermSubjects] No subjects removed');
     }
 
-    console.log('[replaceTermSubjects] No subjects to insert, returning empty array');
-    return [];
+    if (addedSubjectIds.length > 0) {
+        const inserted = await bulkInsertTermSubjects(client, termId, addedSubjectIds, userId);
+        console.log('[replaceTermSubjects] Inserted added subjects:', inserted.length);
+    } else {
+        console.log('[replaceTermSubjects] No subjects added');
+    }
+
+    return await findTermSubjectsByTermId(client, termId);
 }
 
 /**
