@@ -688,12 +688,15 @@ export async function findSubjectsByProfessorId(client, userId) {
             s.name_th,
             s.name_eng,
             s.credit,
+                        s.program_id,
+                        p.program_year,
             tsp.created_at as assigned_at,
             CONCAT(t.academic_sector, '/', t.academic_year) AS term_name
         FROM term_subjects_professor tsp
         JOIN term_subjects ts ON tsp.term_subject_id = ts.id
         JOIN terms t ON ts.term_id = t.id
         JOIN subjects s ON ts.subject_id = s.id
+                LEFT JOIN programs p ON s.program_id = p.id
         WHERE tsp.user_id = $1
           AND ts.is_active = true
         ORDER BY t.academic_year DESC, t.academic_sector, s.code_eng
