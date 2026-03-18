@@ -122,29 +122,42 @@ async function processStudent(authProfile) {
 async function processEmployee(authProfile) {
     console.log('[Login Post-Process] 👨‍🏫 ประมวลผลพนักงาน...');
 
-    // ดึงข้อมูลอาจารย์จาก TU API
-    const instructorData = await instructorApiService.fetchInstructorByEmail(authProfile.email);
+    // fallback จาก TU Auth profile (ใช้ได้แม้ Instructor API ไม่พบข้อมูล)
+    const thaiName = parseThaiName(authProfile.displayNameTh);
+    const englishName = parseEnglishName(authProfile.displayNameEn);
 
-    if (!instructorData) {
-        throw new Error(`ไม่พบข้อมูลอาจารย์สำหรับ email: ${authProfile.email}`);
+    // ดึงข้อมูลอาจารย์จาก TU API (best effort)
+    // ถ้า API ล้มเหลว/ไม่พบข้อมูล จะ fallback เป็นข้อมูลจาก TU Auth
+    let instructorData = null;
+    try {
+        instructorData = await instructorApiService.fetchInstructorByEmail(authProfile.email);
+    } catch (error) {
+        console.warn(`[Login Post-Process] ⚠️ Instructor API ใช้งานไม่ได้ จะ fallback ไปใช้ TU Auth data: ${error.message}`);
     }
 
-    if (!instructorData.facultyNameTh) {
-        throw new Error(`ไม่พบข้อมูลคณะสำหรับอาจารย์: ${authProfile.email}`);
+    const facultyNameTh =
+        instructorData?.facultyNameTh ||
+        authProfile.organization ||
+        authProfile.department ||
+        '';
+
+    if (!facultyNameTh) {
+        throw new Error(`ไม่พบข้อมูลคณะ/หน่วยงานสำหรับพนักงาน: ${authProfile.email}`);
     }
 
     return {
-        facultyNameTh: instructorData.facultyNameTh,
+        facultyNameTh,
         userData: {
-            username: instructorData.username,
-            firstNameTh: instructorData.firstNameTh,
-            lastNameTh: instructorData.lastNameTh,
-            firstNameEn: instructorData.firstNameEn,
-            lastNameEn: instructorData.lastNameEn,
-            email: instructorData.email,
-            userType: instructorData.type,
-            department: instructorData.department,
-            faculty: instructorData.facultyNameTh,
+            // ต้องใช้ username จาก TU Auth เสมอ
+            username: authProfile.username,
+            firstNameTh: instructorData?.firstNameTh || thaiName.firstName,
+            lastNameTh: instructorData?.lastNameTh || thaiName.lastName,
+            firstNameEn: instructorData?.firstNameEn || englishName.firstName,
+            lastNameEn: instructorData?.lastNameEn || englishName.lastName,
+            email: authProfile.email,
+            userType: authProfile.type,
+            department: authProfile.department,
+            faculty: facultyNameTh,
         },
     };
 }

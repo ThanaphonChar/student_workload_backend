@@ -17,8 +17,14 @@ export function isAllowedFaculty(facultyNameTh) {
         return false;
     }
 
-    const normalized = facultyNameTh.trim();
-    return normalized === ALLOWED_FACULTY;
+    // Normalize spaces เพื่อรองรับข้อมูลที่มีช่องว่าง/คำต่อท้ายแตกต่างกัน
+    const normalize = (value) => value.replace(/\s+/g, ' ').trim();
+
+    const normalized = normalize(facultyNameTh);
+    const allowedNormalized = normalize(ALLOWED_FACULTY);
+
+    // ผ่านได้ทั้งกรณีเท่ากันพอดี และกรณีมีคำต่อท้าย เช่น "มหาวิทยาลัยธรรมศาสตร์"
+    return normalized === allowedNormalized || normalized.includes(allowedNormalized);
 }
 
 /**
