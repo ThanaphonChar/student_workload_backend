@@ -7,6 +7,7 @@ import termSubjectRoute from './termSubject.route.js';
 import userRoute from './user.route.js';
 import mySubjectsRoute from './mySubjects.route.js';
 import dashboardRoute from './dashboard.route.js';
+import permissionRoutes from './permission.routes.js';
 
 const router = express.Router();
 
@@ -38,5 +39,8 @@ router.use('/my-subjects', mySubjectsRoute);
 
 // Dashboard route (protected - academic officer only)
 router.use('/dashboard', dashboardRoute);
+
+// Permission management routes (protected - academic officer only)
+router.use('/permissions', permissionRoutes);
 
 export default router;

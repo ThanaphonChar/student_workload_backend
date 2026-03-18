@@ -23,7 +23,7 @@ router.use(authMiddleware);
  */
 router.get(
     '/summary',
-    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    authorizeRoles(ROLES.ACADEMIC_OFFICER, ROLES.PROGRAM_CHAIR, ROLES.PROFESSOR, ROLES.STUDENT),
     dashboardController.getSummaryStatistics
 );
 
@@ -35,7 +35,7 @@ router.get(
  */
 router.get(
     '/average-workload',
-    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    authorizeRoles(ROLES.ACADEMIC_OFFICER, ROLES.PROGRAM_CHAIR, ROLES.PROFESSOR, ROLES.STUDENT),
     dashboardController.getAverageWorkload
 );
 
@@ -48,7 +48,7 @@ router.get(
  */
 router.get(
     '/workload-chart',
-    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    authorizeRoles(ROLES.ACADEMIC_OFFICER, ROLES.PROGRAM_CHAIR, ROLES.PROFESSOR, ROLES.STUDENT),
     dashboardController.getWorkloadChart
 );
 
@@ -59,7 +59,7 @@ router.get(
  */
 router.get(
     '/active-term',
-    authorizeRoles(ROLES.ACADEMIC_OFFICER),
+    authorizeRoles(ROLES.ACADEMIC_OFFICER, ROLES.PROGRAM_CHAIR, ROLES.PROFESSOR, ROLES.STUDENT),
     dashboardController.getActiveTerm
 );
 
