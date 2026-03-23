@@ -8,23 +8,6 @@ import * as dashboardService from '../services/dashboard.service.js';
 /**
  * GET /api/dashboard/summary
  * ดึงข้อมูลสถิติรวมสำหรับ Dashboard
- * 
- * Query Parameters:
- * - termId (optional): ID ของ term ที่ต้องการดู (ถ้าไม่ระบุจะใช้ active term)
- * 
- * Response:
- * {
- *   success: true,
- *   data: {
- *     termId: 1,
- *     statistics: {
- *       totalSubjects: 20,
- *       outlineSubmitted: { count: 15, total: 20, percentage: 75 },
- *       workloadFilled: { count: 10, total: 20, percentage: 50 },
- *       reportSubmitted: { count: 5, total: 20, percentage: 25 }
- *     }
- *   }
- * }
  */
 export async function getSummaryStatistics(req, res) {
     try {
@@ -48,23 +31,6 @@ export async function getSummaryStatistics(req, res) {
 /**
  * GET /api/dashboard/average-workload
  * ดึงค่าเฉลี่ยภาระงานแยกตามปีการศึกษา
- * 
- * Query Parameters:
- * - termId (optional): ID ของ term
- * 
- * Response:
- * {
- *   success: true,
- *   data: {
- *     termId: 1,
- *     averageByYear: [
- *       { yearLevel: 1, avgHours: 19.2 },
- *       { yearLevel: 2, avgHours: 22.6 },
- *       { yearLevel: 3, avgHours: 29.3 },
- *       { yearLevel: 4, avgHours: 29.3 }
- *     ]
- *   }
- * }
  */
 export async function getAverageWorkload(req, res) {
     try {
@@ -88,27 +54,6 @@ export async function getAverageWorkload(req, res) {
 /**
  * GET /api/dashboard/workload-chart
  * ดึงข้อมูลภาระงานแยกตามสัปดาห์สำหรับสร้าง chart
- * 
- * Query Parameters:
- * - termId (optional): ID ของ term
- * - years (optional): ระดับชั้นปีที่ต้องการดู เช่น "1,2" หรือ "1,2,3,4" (default: "1,2,3,4")
- * 
- * Response:
- * {
- *   success: true,
- *   data: {
- *     termId: 1,
- *     semester: 1,  // academic_sector
- *     termYear: 2568,  // academic_year
- *     yearLevels: [1, 2, 3, 4],
- *     chartData: [
- *       { week: 1, totalHours: 30.5 },
- *       { week: 2, totalHours: 28.0 },
- *       ...
- *       { week: 16, totalHours: 45.2 }
- *     ]
- *   }
- * }
  */
 export async function getWorkloadChart(req, res) {
     try {
@@ -148,22 +93,6 @@ export async function getWorkloadChart(req, res) {
     }
 }
 
-/**
- * GET /api/dashboard/active-term
- * ดึงข้อมูล active term
- * 
- * Response:
- * {
- *   success: true,
- *   data: {
- *     id: 1,
- *     academic_year: 2568,
- *     academic_sector: 1,
- *     term_start_date: "2025-01-01",
- *     term_end_date: "2025-05-31"
- *   }
- * }
- */
 export async function getActiveTerm(req, res) {
     try {
         const activeTerm = await dashboardService.getActiveTermInfo();
