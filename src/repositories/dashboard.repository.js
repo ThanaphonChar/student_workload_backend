@@ -111,12 +111,12 @@ export async function getWorkloadChartData(termId, yearLevels = [1, 2, 3, 4]) {
 
     const query = `
         WITH RECURSIVE weeks AS (
-            -- สร้างตารางสัปดาห์ 1-16
+            -- สร้างตารางสัปดาห์ 1-15
             SELECT 1 AS week_number
             UNION ALL
             SELECT week_number + 1
             FROM weeks
-            WHERE week_number < 16
+            WHERE week_number < 15
         ),
         filtered_workloads AS (
             -- ดึงข้อมูล work_details ที่ filter แล้ว
