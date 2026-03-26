@@ -5,13 +5,53 @@
 
 import * as dashboardService from '../services/dashboard.service.js';
 
+function parseOptionalPositiveInt(value, fieldName) {
+    if (value === undefined || value === null || value === '') {
+        return null;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        const error = new Error(`${fieldName} ไม่ถูกต้อง`);
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return parsed;
+}
+
+function parseYearLevels(value) {
+    if (!value) return [1, 2, 3, 4];
+
+    const parsed = String(value)
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((num) => Number.isInteger(num) && num > 0);
+
+    if (parsed.length === 0) {
+        const error = new Error('years ไม่ถูกต้อง');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return parsed;
+}
+
+function handleDashboardError(res, error, fallbackMessage) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+        success: false,
+        message: error.message || fallbackMessage,
+    });
+}
+
 /**
  * GET /api/dashboard/summary
  * ดึงข้อมูลสถิติรวมสำหรับ Dashboard
  */
 export async function getSummaryStatistics(req, res) {
     try {
-        const termId = req.query.termId ? parseInt(req.query.termId) : null;
+        const termId = parseOptionalPositiveInt(req.query.termId, 'termId');
 
         const result = await dashboardService.getSummaryStatistics(termId);
 
@@ -21,10 +61,7 @@ export async function getSummaryStatistics(req, res) {
         });
     } catch (error) {
         console.error('Error in getSummaryStatistics:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลสถิติ'
-        });
+        return handleDashboardError(res, error, 'เกิดข้อผิดพลาดในการดึงข้อมูลสถิติ');
     }
 }
 
@@ -34,7 +71,7 @@ export async function getSummaryStatistics(req, res) {
  */
 export async function getAverageWorkload(req, res) {
     try {
-        const termId = req.query.termId ? parseInt(req.query.termId) : null;
+        const termId = parseOptionalPositiveInt(req.query.termId, 'termId');
 
         const result = await dashboardService.getAverageWorkload(termId);
 
@@ -44,10 +81,7 @@ export async function getAverageWorkload(req, res) {
         });
     } catch (error) {
         console.error('Error in getAverageWorkload:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูลค่าเฉลี่ย'
-        });
+        return handleDashboardError(res, error, 'เกิดข้อผิดพลาดในการดึงข้อมูลค่าเฉลี่ย');
     }
 }
 
@@ -57,16 +91,8 @@ export async function getAverageWorkload(req, res) {
  */
 export async function getWorkloadChart(req, res) {
     try {
-        const termId = req.query.termId ? parseInt(req.query.termId) : null;
-
-        // Parse years parameter
-        let yearLevels = [1, 2, 3, 4]; // default
-        if (req.query.years) {
-            yearLevels = req.query.years
-                .split(',')
-                .map(y => parseInt(y.trim()))
-                .filter(y => !isNaN(y));
-        }
+        const termId = parseOptionalPositiveInt(req.query.termId, 'termId');
+        const yearLevels = parseYearLevels(req.query.years);
 
         console.log('[getWorkloadChart] 📊 Request:', { termId, yearLevels });
 
@@ -86,10 +112,7 @@ export async function getWorkloadChart(req, res) {
         });
     } catch (error) {
         console.error('Error in getWorkloadChart:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล chart'
-        });
+        return handleDashboardError(res, error, 'เกิดข้อผิดพลาดในการดึงข้อมูล chart');
     }
 }
 
@@ -110,10 +133,7 @@ export async function getActiveTerm(req, res) {
         });
     } catch (error) {
         console.error('Error in getActiveTerm:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล active term'
-        });
+        return handleDashboardError(res, error, 'เกิดข้อผิดพลาดในการดึงข้อมูล active term');
     }
 }
 

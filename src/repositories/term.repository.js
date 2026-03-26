@@ -212,7 +212,7 @@ export async function findTermWithStats(termId) {
             t.*,
             COALESCE(COUNT(ts.id), 0) as subject_count
         FROM terms t
-        LEFT JOIN term_subjects ts ON t.id = ts.term_id
+        LEFT JOIN term_subjects ts ON t.id = ts.term_id AND ts.is_active = true
         WHERE t.id = $1
         GROUP BY t.id
     `;
@@ -229,7 +229,7 @@ export async function findActiveTerms() {
             t.*,
             COALESCE(COUNT(ts.id), 0) as subject_count
         FROM terms t
-        LEFT JOIN term_subjects ts ON t.id = ts.term_id
+        LEFT JOIN term_subjects ts ON t.id = ts.term_id AND ts.is_active = true
         WHERE t.term_end_date >= CURRENT_DATE
         GROUP BY t.id
         ORDER BY t.academic_year DESC, t.academic_sector DESC
@@ -254,7 +254,7 @@ export async function findCurrentTerm() {
                 COALESCE(COUNT(ts.id), 0) as subject_count,
                 1 as priority
             FROM terms t
-            LEFT JOIN term_subjects ts ON t.id = ts.term_id
+            LEFT JOIN term_subjects ts ON t.id = ts.term_id AND ts.is_active = true
             WHERE CURRENT_DATE BETWEEN t.term_start_date AND t.term_end_date
             GROUP BY t.id
         ),
@@ -265,7 +265,7 @@ export async function findCurrentTerm() {
                 COALESCE(COUNT(ts.id), 0) as subject_count,
                 2 as priority
             FROM terms t
-            LEFT JOIN term_subjects ts ON t.id = ts.term_id
+            LEFT JOIN term_subjects ts ON t.id = ts.term_id AND ts.is_active = true
             GROUP BY t.id
             ORDER BY t.academic_year DESC, t.academic_sector DESC
             LIMIT 1
@@ -304,7 +304,7 @@ export async function findEndedTerms() {
             t.*,
             COALESCE(COUNT(ts.id), 0) as subject_count
         FROM terms t
-        LEFT JOIN term_subjects ts ON t.id = ts.term_id
+        LEFT JOIN term_subjects ts ON t.id = ts.term_id AND ts.is_active = true
         WHERE t.term_end_date < CURRENT_DATE
         GROUP BY t.id
         ORDER BY t.academic_year DESC, t.academic_sector DESC

@@ -192,6 +192,25 @@ export async function getTermById(termId) {
 export async function updateTerm(termId, termData, userId) {
     const client = await pool.connect();
     try {
+        // Step 0: Validate user ID
+        if (!userId || typeof userId !== 'number') {
+            throw new BusinessError(
+                'Invalid user ID. Please logout and login again.',
+                'INVALID_USER_ID',
+                400
+            );
+        }
+
+        // Step 0.5: Verify user exists (avoid FK violation on updated_by)
+        const userCheck = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
+        if (userCheck.rows.length === 0) {
+            throw new BusinessError(
+                'User account ไม่มีอยู่ในระบบ กรุณา logout และ login ใหม่อีกครั้ง (User not found in database)',
+                'USER_NOT_FOUND',
+                401
+            );
+        }
+
         // Step 1: Check if term exists
         const existing = await termRepo.findTermById(client, termId);
         if (!existing) {

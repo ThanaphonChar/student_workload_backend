@@ -8,6 +8,7 @@ import userRoute from './user.route.js';
 import mySubjectsRoute from './mySubjects.route.js';
 import dashboardRoute from './dashboard.route.js';
 import permissionRoutes from './permission.routes.js';
+import submissionRoutes from './submission.routes.js';
 
 const router = express.Router();
 
@@ -42,5 +43,8 @@ router.use('/dashboard', dashboardRoute);
 
 // Permission management routes (protected - academic officer only)
 router.use('/permissions', permissionRoutes);
+
+// Document submission routes (protected)
+router.use('/submissions', submissionRoutes);
 
 export default router;
