@@ -57,6 +57,7 @@ export async function findTermSubjectsByTermId(client, termId) {
         FROM term_subjects ts
         JOIN subjects s ON ts.subject_id = s.id
         WHERE ts.term_id = $1
+          AND ts.is_active = true
         ORDER BY s.code_eng
     `;
     const result = await client.query(sql, [termId]);
@@ -227,9 +228,19 @@ export async function findProfessorsByTermSubject(client, termSubjectId) {
  * Count term subjects by term ID
  */
 export async function countTermSubjects(client, termId) {
-    const sql = 'SELECT COUNT(*) FROM term_subjects WHERE term_id = $1';
+    const sql = 'SELECT COUNT(*) FROM term_subjects WHERE term_id = $1 AND is_active = true';
     const result = await client.query(sql, [termId]);
     return parseInt(result.rows[0].count, 10);
+}
+
+async function findAllTermSubjectRowsByTermId(client, termId) {
+    const sql = `
+        SELECT id, subject_id, is_active
+        FROM term_subjects
+        WHERE term_id = $1
+    `;
+    const result = await client.query(sql, [termId]);
+    return result.rows;
 }
 
 /**
@@ -327,6 +338,44 @@ export async function deleteTermSubjectsByTermIdAndSubjectIds(client, termId, su
     return result.rows;
 }
 
+export async function deactivateTermSubjectsByTermIdAndSubjectIds(client, termId, subjectIds, userId) {
+    if (!subjectIds || subjectIds.length === 0) {
+        return [];
+    }
+
+    const sql = `
+        UPDATE term_subjects
+        SET is_active = false,
+            updated_at = NOW(),
+            updated_by = $3
+        WHERE term_id = $1
+          AND subject_id = ANY($2::int[])
+          AND is_active = true
+        RETURNING id, subject_id
+    `;
+    const result = await client.query(sql, [termId, subjectIds, userId]);
+    return result.rows;
+}
+
+export async function reactivateTermSubjectsByTermIdAndSubjectIds(client, termId, subjectIds, userId) {
+    if (!subjectIds || subjectIds.length === 0) {
+        return [];
+    }
+
+    const sql = `
+        UPDATE term_subjects
+        SET is_active = true,
+            updated_at = NOW(),
+            updated_by = $3
+        WHERE term_id = $1
+          AND subject_id = ANY($2::int[])
+          AND is_active = false
+        RETURNING id, subject_id
+    `;
+    const result = await client.query(sql, [termId, subjectIds, userId]);
+    return result.rows;
+}
+
 /**
  * Replace term subjects (delete old and insert new)
  * Used when updating term's subject list
@@ -338,18 +387,33 @@ export async function replaceTermSubjects(client, termId, subjectIds, userId) {
         ? [...new Set(subjectIds.map(id => parseInt(id, 10)).filter(Number.isInteger))]
         : [];
 
-    const existingSubjects = await findTermSubjectsByTermId(client, termId);
-    const existingSubjectIds = existingSubjects.map(row => row.subject_id);
+    const existingRows = await findAllTermSubjectRowsByTermId(client, termId);
+    const activeSubjectIds = existingRows
+        .filter(row => row.is_active)
+        .map(row => row.subject_id);
+    const inactiveSubjectIds = existingRows
+        .filter(row => !row.is_active)
+        .map(row => row.subject_id);
 
-    // Keep untouched term_subject rows so existing instructor assignments stay intact.
-    const removedSubjectIds = existingSubjectIds.filter(id => !nextSubjectIds.includes(id));
-    const addedSubjectIds = nextSubjectIds.filter(id => !existingSubjectIds.includes(id));
+    // Soft-remove subjects to preserve FK-linked historical rows.
+    const removedSubjectIds = activeSubjectIds.filter(id => !nextSubjectIds.includes(id));
+    const reactivatedSubjectIds = inactiveSubjectIds.filter(id => nextSubjectIds.includes(id));
+    const addedSubjectIds = nextSubjectIds.filter(
+        id => !activeSubjectIds.includes(id) && !inactiveSubjectIds.includes(id)
+    );
 
     if (removedSubjectIds.length > 0) {
-        const deleted = await deleteTermSubjectsByTermIdAndSubjectIds(client, termId, removedSubjectIds);
-        console.log('[replaceTermSubjects] Deleted removed subjects:', deleted.length);
+        const deactivated = await deactivateTermSubjectsByTermIdAndSubjectIds(client, termId, removedSubjectIds, userId);
+        console.log('[replaceTermSubjects] Deactivated removed subjects:', deactivated.length);
     } else {
         console.log('[replaceTermSubjects] No subjects removed');
+    }
+
+    if (reactivatedSubjectIds.length > 0) {
+        const reactivated = await reactivateTermSubjectsByTermIdAndSubjectIds(client, termId, reactivatedSubjectIds, userId);
+        console.log('[replaceTermSubjects] Reactivated subjects:', reactivated.length);
+    } else {
+        console.log('[replaceTermSubjects] No subjects reactivated');
     }
 
     if (addedSubjectIds.length > 0) {

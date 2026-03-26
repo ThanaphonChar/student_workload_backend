@@ -311,17 +311,32 @@ function handleError(res, error) {
             column: error.column,
         });
 
-        // แยกแยะ error message ตาม detail
+        // แยกแยะ error message จาก detail/constraint/table/column ให้ครอบคลุมขึ้น
         let message = 'ข้อมูลอ้างอิงไม่ถูกต้อง';
+        const fkHint = [
+            error.message,
+            error.detail,
+            error.hint,
+            error.constraint,
+            error.table,
+            error.column,
+            error.schema,
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
 
-        if (error.detail) {
-            if (error.detail.includes('created_by') || error.detail.includes('users')) {
-                message = 'User account ไม่มีอยู่ในระบบ กรุณา logout และ login ใหม่อีกครั้ง (User not found in database)';
-            } else if (error.detail.includes('subject_id') || error.detail.includes('subjects')) {
-                message = 'หนึ่งหรือมากกว่านั้นในรายวิชาที่เลือกไม่มีอยู่ในระบบ (One or more selected subjects do not exist in the database)';
-            } else if (error.detail.includes('term_id') || error.detail.includes('terms')) {
-                message = 'ภาคการศึกษาไม่มีอยู่ในระบบ (Term not found in database)';
-            }
+        if (
+            fkHint.includes('created_by') ||
+            fkHint.includes('updated_by') ||
+            fkHint.includes('users') ||
+            fkHint.includes('user_id')
+        ) {
+            message = 'User account ไม่มีอยู่ในระบบ กรุณา logout และ login ใหม่อีกครั้ง (User not found in database)';
+        } else if (fkHint.includes('subject_id') || fkHint.includes('subjects')) {
+            message = 'หนึ่งหรือมากกว่านั้นในรายวิชาที่เลือกไม่มีอยู่ในระบบ (One or more selected subjects do not exist in the database)';
+        } else if (fkHint.includes('term_id') || fkHint.includes('terms')) {
+            message = 'ภาคการศึกษาไม่มีอยู่ในระบบ (Term not found in database)';
         }
 
         return res.status(400).json({
@@ -329,6 +344,9 @@ function handleError(res, error) {
             message: message,
             code: 'FOREIGN_KEY_VIOLATION',
             detail: process.env.NODE_ENV === 'development' ? error.detail : undefined,
+            constraint: process.env.NODE_ENV === 'development' ? error.constraint : undefined,
+            table: process.env.NODE_ENV === 'development' ? error.table : undefined,
+            column: process.env.NODE_ENV === 'development' ? error.column : undefined,
         });
     }
 
