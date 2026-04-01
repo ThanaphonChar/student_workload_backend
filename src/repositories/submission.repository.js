@@ -13,11 +13,14 @@ export async function getMySubjectsWithStatus(client, termId, instructorId) {
             COALESCE(s.code_eng, s.code_th) AS subject_code,
             COALESCE(s.name_th, s.name_eng) AS subject_name,
             s.program_id,
+            t.term_start_date,
+            t.term_end_date,
             outline_latest.submission AS outline,
             report_latest.submission AS report
         FROM term_subjects ts
         INNER JOIN term_subjects_professor tsp ON tsp.term_subject_id = ts.id
         INNER JOIN subjects s ON s.id = ts.subject_id
+        INNER JOIN terms t ON t.id = ts.term_id
         LEFT JOIN LATERAL (
             SELECT json_build_object(
                 'status', ds.status,
@@ -70,6 +73,8 @@ export async function getMySubjectsWithStatus(client, termId, instructorId) {
         subject_code: row.subject_code,
         subject_name: row.subject_name,
         program_id: row.program_id,
+        term_start_date: row.term_start_date,
+        term_end_date: row.term_end_date,
         outline: normalizeSubmission(row.outline),
         report: normalizeSubmission(row.report),
     }));
