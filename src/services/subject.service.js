@@ -1,4 +1,6 @@
-import { query } from '../config/db.js';
+import { pool, query } from '../config/db.js';
+
+let _junctionTableExists = null;
 
 /**
  * Subject Service
@@ -24,7 +26,26 @@ export async function createSubject(subjectData) {
         is_active,
     } = subjectData;
 
-    // Insert subject without student_year_id (will use junction table)
+    // Validate FK: program must exist
+    const programOk = await programExists(program_id);
+    if (!programOk) {
+        const err = new Error(`ไม่พบหลักสูตรที่มี ID = ${program_id}`);
+        err.statusCode = 404;
+        throw err;
+    }
+
+    // Validate FK: all student years must exist
+    if (student_year_ids && student_year_ids.length > 0) {
+        for (const yearId of student_year_ids) {
+            const yearOk = await studentYearExists(yearId);
+            if (!yearOk) {
+                const err = new Error(`ไม่พบชั้นปีที่มี ID = ${yearId}`);
+                err.statusCode = 404;
+                throw err;
+            }
+        }
+    }
+
     const sql = `
         INSERT INTO subjects (
             code_th,
@@ -54,36 +75,33 @@ export async function createSubject(subjectData) {
         is_active !== undefined ? is_active : true,
     ];
 
-    const result = await query(sql, values);
-    const subject = result.rows[0];
-
-    console.log('[Subject Service] 📊 Received student_year_ids:', student_year_ids);
-    console.log('[Subject Service] 📊 Type:', Array.isArray(student_year_ids), 'Length:', student_year_ids?.length);
-
-    // Insert junction table records for each student year
     const hasJunctionTable = await checkJunctionTableExists();
 
-    if (hasJunctionTable && student_year_ids && student_year_ids.length > 0) {
-        console.log('[Subject Service] ✅ Junction table exists, inserting records...');
-        try {
-            await insertSubjectStudentYears(subject.id, student_year_ids);
-            console.log('[Subject Service] ✅ Junction records inserted successfully');
-        } catch (error) {
-            console.error('[Subject Service] ❌ Failed to insert junction records:', error.message);
-            // ถ้า junction table ล้มเหลว แต่ subject สร้างสำเร็จแล้ว ให้ส่ง warning
-            console.warn('[Subject Service] ⚠️ Subject created but junction table failed. Run migration.sql');
-        }
-    } else if (!hasJunctionTable) {
-        console.warn('[Subject Service] ⚠️ Junction table not found. Please run migration.sql');
-    } else if (!student_year_ids || student_year_ids.length === 0) {
-        console.warn('[Subject Service] ⚠️ No student_year_ids provided');
+    if (!hasJunctionTable || !student_year_ids || student_year_ids.length === 0) {
+        // No junction records needed — single query is fine
+        const result = await query(sql, values);
+        const subject = result.rows[0];
+        return { ...subject, student_year_ids: student_year_ids || [] };
     }
 
-    // Return subject with student_year_ids array
-    return {
-        ...subject,
-        student_year_ids: student_year_ids || [],
-    };
+    // Wrap subject insert + junction inserts in a single transaction
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const result = await client.query(sql, values);
+        const subject = result.rows[0];
+
+        await insertSubjectStudentYearsWithClient(client, subject.id, student_year_ids);
+
+        await client.query('COMMIT');
+        return { ...subject, student_year_ids };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 /**
@@ -240,6 +258,28 @@ export async function getSubjectById(id) {
  * @returns {Promise<Object|null>} Updated subject or null if not found
  */
 export async function updateSubject(id, updateData) {
+    // Validate FK: program must exist if provided
+    if (updateData.program_id) {
+        const programOk = await programExists(updateData.program_id);
+        if (!programOk) {
+            const err = new Error(`ไม่พบหลักสูตรที่มี ID = ${updateData.program_id}`);
+            err.statusCode = 404;
+            throw err;
+        }
+    }
+
+    // Validate FK: student years must exist if provided
+    if (updateData.student_year_ids && updateData.student_year_ids.length > 0) {
+        for (const yearId of updateData.student_year_ids) {
+            const yearOk = await studentYearExists(yearId);
+            if (!yearOk) {
+                const err = new Error(`ไม่พบชั้นปีที่มี ID = ${yearId}`);
+                err.statusCode = 404;
+                throw err;
+            }
+        }
+    }
+
     const allowedFields = [
         'code_th',
         'code_eng',
@@ -275,16 +315,15 @@ export async function updateSubject(id, updateData) {
     // Always update updated_at
     updates.push(`updated_at = NOW()`);
 
-    let sql;
     if (updates.length > 1) {
-        sql = `
+        const sql = `
             UPDATE subjects
             SET ${updates.join(', ')}
             WHERE id = $${paramCount}
             RETURNING *
         `;
         values.push(id);
-        const result = await query(sql, values);
+        await query(sql, values);
     }
 
     // Update junction table if student_year_ids provided
@@ -328,20 +367,18 @@ export async function deleteSubject(id) {
  * @returns {Promise<boolean>}
  */
 async function checkJunctionTableExists() {
-    // ไม่ใช้ cache เพื่อให้ตรวจสอบทุกครั้ง (กรณี migrate ระหว่างรัน server)
+    if (_junctionTableExists !== null) return _junctionTableExists;
     try {
         const sql = `
             SELECT EXISTS (
-                SELECT FROM information_schema.tables 
+                SELECT FROM information_schema.tables
                 WHERE table_name = 'subjects_student_years'
             )
         `;
         const result = await query(sql, []);
-        const exists = result.rows[0].exists;
-        console.log('[Subject Service] 🔍 Junction table check:', exists);
-        return exists;
+        _junctionTableExists = result.rows[0].exists;
+        return _junctionTableExists;
     } catch (error) {
-        console.warn('[Subject Service] ⚠️ Cannot check junction table:', error.message);
         return false;
     }
 }
@@ -391,6 +428,14 @@ export async function getSubjectStudentYears(subjectId) {
  * @param {Array<number>} studentYearIds - Array of Student Year IDs
  * @returns {Promise<void>}
  */
+async function insertSubjectStudentYearsWithClient(client, subjectId, studentYearIds) {
+    if (!studentYearIds || studentYearIds.length === 0) return;
+    const yearIds = studentYearIds.map(id => parseInt(id, 10));
+    const valuePlaceholders = yearIds.map((_, index) => `($1, $${index + 2})`).join(', ');
+    const sql = `INSERT INTO subjects_student_years (subject_id, student_year_id) VALUES ${valuePlaceholders}`;
+    await client.query(sql, [subjectId, ...yearIds]);
+}
+
 async function insertSubjectStudentYears(subjectId, studentYearIds) {
     if (!studentYearIds || studentYearIds.length === 0) {
         return;

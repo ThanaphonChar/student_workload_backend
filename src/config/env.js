@@ -41,8 +41,7 @@ if (!config.tuApi.applicationKey) {
     process.exit(1);
 }
 
-// Validate database configuration (either URL or individual credentials)
-const hasDatabaseUrl = !!config.database.url;
+// Validate database configuration
 const hasDatabaseCredentials = !!(
     config.database.host &&
     config.database.name &&
@@ -50,11 +49,9 @@ const hasDatabaseCredentials = !!(
     config.database.password
 );
 
-if (!hasDatabaseUrl && !hasDatabaseCredentials) {
+if (!hasDatabaseCredentials) {
     console.error('❌ ERROR: Database configuration is required');
-    console.error('Please provide either:');
-    // console.error('  1. DATABASE_URL (connection string), or');
-    console.error('  2. DATABASE_HOST, DATABASE_NAME, DATABASE_USER, and DATABASE_PASSWORD');
+    console.error('Please provide: DATABASE_HOST, DATABASE_NAME, DATABASE_USER, and DATABASE_PASSWORD');
     process.exit(1);
 }
 

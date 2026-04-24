@@ -9,26 +9,26 @@ import { pool } from '../config/db.js';
 /**
  * Get distinct academic years from terms table
  */
-export async function getDistinctAcademicYears() {
+export async function getDistinctAcademicYears(client = pool) {
     const sql = `
         SELECT DISTINCT academic_year
         FROM terms
         ORDER BY academic_year DESC
     `;
-    const result = await pool.query(sql);
+    const result = await client.query(sql);
     return result.rows.map(row => row.academic_year);
 }
 
 /**
  * Get distinct academic sectors from terms table
  */
-export async function getDistinctAcademicSectors() {
+export async function getDistinctAcademicSectors(client = pool) {
     const sql = `
         SELECT DISTINCT academic_sector
         FROM terms
         ORDER BY academic_sector ASC
     `;
-    const result = await pool.query(sql);
+    const result = await client.query(sql);
     return result.rows.map(row => row.academic_sector);
 }
 
@@ -71,7 +71,7 @@ export async function insertTerm(client, termData, userId) {
 /**
  * Find all terms with optional filters
  */
-export async function findAllTerms(filters = {}) {
+export async function findAllTerms(client = pool, filters = {}) {
     let sql = `
         SELECT * FROM terms
         WHERE 1=1
@@ -96,7 +96,7 @@ export async function findAllTerms(filters = {}) {
     // Add ordering
     sql += ' ORDER BY academic_year DESC, academic_sector DESC';
 
-    const result = await pool.query(sql, values);
+    const result = await client.query(sql, values);
     return result.rows;
 }
 
@@ -206,9 +206,9 @@ export async function countTerms(client) {
 /**
  * Find term with statistics (subject count)
  */
-export async function findTermWithStats(termId) {
+export async function findTermWithStats(client = pool, termId) {
     const sql = `
-        SELECT 
+        SELECT
             t.*,
             COALESCE(COUNT(ts.id), 0) as subject_count
         FROM terms t
@@ -216,16 +216,16 @@ export async function findTermWithStats(termId) {
         WHERE t.id = $1
         GROUP BY t.id
     `;
-    const result = await pool.query(sql, [termId]);
+    const result = await client.query(sql, [termId]);
     return result.rows[0];
 }
 
 /**
  * Find active (ongoing) terms
  */
-export async function findActiveTerms() {
+export async function findActiveTerms(client = pool) {
     const sql = `
-        SELECT 
+        SELECT
             t.*,
             COALESCE(COUNT(ts.id), 0) as subject_count
         FROM terms t
@@ -234,7 +234,7 @@ export async function findActiveTerms() {
         GROUP BY t.id
         ORDER BY t.academic_year DESC, t.academic_sector DESC
     `;
-    const result = await pool.query(sql);
+    const result = await client.query(sql);
     return result.rows;
 }
 
@@ -244,8 +244,7 @@ export async function findActiveTerms() {
  * 1. หาภาคการศึกษาที่วันที่ปัจจุบันอยู่ระหว่าง start_date ถึง end_date
  * 2. ถ้าไม่มี ให้เอาภาคการศึกษาที่ใหม่สุด (เรียงตาม academic_year, semester DESC)
  */
-export async function findCurrentTerm() {
-    console.log('[findCurrentTerm] 🔍 Starting query...');
+export async function findCurrentTerm(client = pool) {
     const sql = `
         WITH current_term AS (
             -- หาเทอมที่วันที่ปัจจุบันอยู่ในช่วง
@@ -276,31 +275,16 @@ export async function findCurrentTerm() {
         ORDER BY priority
         LIMIT 1
     `;
-    try {
-        const result = await pool.query(sql);
-        console.log('[findCurrentTerm] ✅ Query result:', result.rows.length, 'rows');
-        if (result.rows[0]) {
-            console.log('[findCurrentTerm] 📅 Found term:', {
-                id: result.rows[0].id,
-                year: result.rows[0].academic_year,
-                sector: result.rows[0].academic_sector,
-                priority: result.rows[0].priority
-            });
-        }
-        return result.rows[0] || null;
-    } catch (error) {
-        console.error('[findCurrentTerm] ❌ SQL Error:', error.message);
-        console.error('[findCurrentTerm] SQL:', sql);
-        throw error;
-    }
+    const result = await client.query(sql);
+    return result.rows[0] || null;
 }
 
 /**
  * Find ended terms
  */
-export async function findEndedTerms() {
+export async function findEndedTerms(client = pool) {
     const sql = `
-        SELECT 
+        SELECT
             t.*,
             COALESCE(COUNT(ts.id), 0) as subject_count
         FROM terms t
@@ -309,6 +293,6 @@ export async function findEndedTerms() {
         GROUP BY t.id
         ORDER BY t.academic_year DESC, t.academic_sector DESC
     `;
-    const result = await pool.query(sql);
+    const result = await client.query(sql);
     return result.rows;
 }

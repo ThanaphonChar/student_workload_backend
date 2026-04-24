@@ -837,9 +837,9 @@ export async function saveDocumentMetadata(client, termSubjectId, documentType, 
  */
 export async function findDocumentsByTermSubject(client, termSubjectId) {
     const sql = `
-        SELECT 
+        SELECT
             d.*,
-            u.name_th as uploader_name
+            CONCAT(u.first_name_th, ' ', u.last_name_th) as uploader_name
         FROM term_subject_documents d
         LEFT JOIN users u ON d.uploaded_by = u.id
         WHERE d.term_subject_id = $1
@@ -891,4 +891,113 @@ export async function findDocumentById(client, termSubjectId, documentId) {
 
     const result = await client.query(sql, [documentId, termSubjectId]);
     return result.rows[0] || null;
+}
+
+/**
+ * ==========================================
+ * Lecturer Assignment Operations
+ * ==========================================
+ */
+
+/**
+ * Find a lecturer assignment by term_subject_id and user_id
+ */
+export async function findLecturerAssignment(client, termSubjectId, userId) {
+    const sql = `
+        SELECT *
+        FROM term_subjects_professor
+        WHERE term_subject_id = $1 AND user_id = $2
+        LIMIT 1
+    `;
+    const result = await client.query(sql, [termSubjectId, userId]);
+    return result.rows[0] || null;
+}
+
+/**
+ * Find a lecturer assignment by its own ID
+ */
+export async function findLecturerAssignmentById(client, assignmentId) {
+    const sql = `
+        SELECT *
+        FROM term_subjects_professor
+        WHERE id = $1
+        LIMIT 1
+    `;
+    const result = await client.query(sql, [assignmentId]);
+    return result.rows[0] || null;
+}
+
+/**
+ * Count number of lecturers assigned to a term subject
+ */
+export async function countLecturers(client, termSubjectId) {
+    const sql = `
+        SELECT COUNT(*) AS count
+        FROM term_subjects_professor
+        WHERE term_subject_id = $1
+    `;
+    const result = await client.query(sql, [termSubjectId]);
+    return parseInt(result.rows[0].count);
+}
+
+/**
+ * Find the responsible lecturer for a term subject
+ */
+export async function findResponsibleLecturer(client, termSubjectId) {
+    const sql = `
+        SELECT
+            tsp.*,
+            u.email,
+            u.first_name_th,
+            u.last_name_th,
+            u.first_name_en,
+            u.last_name_en
+        FROM term_subjects_professor tsp
+        JOIN users u ON tsp.user_id = u.id
+        WHERE tsp.term_subject_id = $1
+          AND tsp.is_responsible = true
+        LIMIT 1
+    `;
+    const result = await client.query(sql, [termSubjectId]);
+    return result.rows[0] || null;
+}
+
+/**
+ * Clear is_responsible flag for all lecturers in a term subject
+ */
+export async function clearResponsibleLecturers(client, termSubjectId) {
+    const sql = `
+        UPDATE term_subjects_professor
+        SET is_responsible = false
+        WHERE term_subject_id = $1
+    `;
+    await client.query(sql, [termSubjectId]);
+}
+
+/**
+ * Update a lecturer assignment (is_responsible, notes)
+ */
+export async function updateLecturerAssignment(client, assignmentId, data) {
+    const sql = `
+        UPDATE term_subjects_professor
+        SET is_responsible = $1,
+            notes = $2
+        WHERE id = $3
+        RETURNING *
+    `;
+    const result = await client.query(sql, [data.is_responsible, data.notes ?? null, assignmentId]);
+    return result.rows[0];
+}
+
+/**
+ * Delete a lecturer assignment by ID
+ */
+export async function deleteLecturerAssignment(client, assignmentId) {
+    const sql = `
+        DELETE FROM term_subjects_professor
+        WHERE id = $1
+        RETURNING *
+    `;
+    const result = await client.query(sql, [assignmentId]);
+    return result.rows[0];
 }

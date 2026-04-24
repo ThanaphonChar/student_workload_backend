@@ -4,38 +4,7 @@
  */
 
 import * as dashboardService from '../services/dashboard.service.js';
-
-function parseOptionalPositiveInt(value, fieldName) {
-    if (value === undefined || value === null || value === '') {
-        return null;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-        const error = new Error(`${fieldName} ไม่ถูกต้อง`);
-        error.statusCode = 400;
-        throw error;
-    }
-
-    return parsed;
-}
-
-function parseYearLevels(value) {
-    if (!value) return [1, 2, 3, 4];
-
-    const parsed = String(value)
-        .split(',')
-        .map((item) => Number(item.trim()))
-        .filter((num) => Number.isInteger(num) && num > 0);
-
-    if (parsed.length === 0) {
-        const error = new Error('years ไม่ถูกต้อง');
-        error.statusCode = 400;
-        throw error;
-    }
-
-    return parsed;
-}
+import { parseOptionalPositiveInt, parseYearLevels } from '../services/dashboard.service.js';
 
 function handleDashboardError(res, error, fallbackMessage) {
     const statusCode = error.statusCode || 500;

@@ -225,30 +225,26 @@ export async function removeProfessor(termSubjectId, userId) {
 }
 
 export async function changeResponsibleLecturer(termSubjectId, newResponsibleUserId) {
-    // Validate term subject exists
-    const termSubject = await termSubjectRepo.findTermSubjectById(termSubjectId);
-    if (!termSubject) {
-        throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
-    }
-
-    // Validate new responsible lecturer is assigned
-    const lecturerAssignment = await termSubjectRepo.findLecturerAssignment(termSubjectId, newResponsibleUserId);
-    if (!lecturerAssignment) {
-        throw new BusinessError(
-            'Lecturer must be assigned to this subject before being set as responsible',
-            'LECTURER_NOT_ASSIGNED',
-            400
-        );
-    }
-
     const client = await pool.connect();
     try {
+        const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
+        if (!termSubject) {
+            throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
+        }
+
+        const lecturerAssignment = await termSubjectRepo.findLecturerAssignment(client, termSubjectId, newResponsibleUserId);
+        if (!lecturerAssignment) {
+            throw new BusinessError(
+                'Lecturer must be assigned to this subject before being set as responsible',
+                'LECTURER_NOT_ASSIGNED',
+                400
+            );
+        }
+
         await client.query('BEGIN');
 
-        // Clear all responsible lecturers
         await termSubjectRepo.clearResponsibleLecturers(client, termSubjectId);
 
-        // Set new responsible lecturer
         const updated = await termSubjectRepo.updateLecturerAssignment(client, lecturerAssignment.id, {
             is_responsible: true,
             notes: lecturerAssignment.notes,
@@ -268,13 +264,13 @@ export async function changeResponsibleLecturer(termSubjectId, newResponsibleUse
  * Update lecturer assignment notes
  */
 export async function updateLecturerNotes(assignmentId, notes) {
-    const assignment = await termSubjectRepo.findLecturerAssignmentById(assignmentId);
-    if (!assignment) {
-        throw new BusinessError('Lecturer assignment not found', 'ASSIGNMENT_NOT_FOUND', 404);
-    }
-
     const client = await pool.connect();
     try {
+        const assignment = await termSubjectRepo.findLecturerAssignmentById(client, assignmentId);
+        if (!assignment) {
+            throw new BusinessError('Lecturer assignment not found', 'ASSIGNMENT_NOT_FOUND', 404);
+        }
+
         await client.query('BEGIN');
 
         const updated = await termSubjectRepo.updateLecturerAssignment(client, assignmentId, {
@@ -296,25 +292,24 @@ export async function updateLecturerNotes(assignmentId, notes) {
  * Remove lecturer from term subject
  */
 export async function removeLecturer(assignmentId) {
-    const assignment = await termSubjectRepo.findLecturerAssignmentById(assignmentId);
-    if (!assignment) {
-        throw new BusinessError('Lecturer assignment not found', 'ASSIGNMENT_NOT_FOUND', 404);
-    }
-
-    // Check if this is the responsible lecturer
-    if (assignment.is_responsible) {
-        const lecturerCount = await termSubjectRepo.countLecturers(assignment.term_subject_id);
-        if (lecturerCount > 1) {
-            throw new BusinessError(
-                'Cannot remove responsible lecturer. Please assign another responsible lecturer first.',
-                'CANNOT_REMOVE_RESPONSIBLE',
-                400
-            );
-        }
-    }
-
     const client = await pool.connect();
     try {
+        const assignment = await termSubjectRepo.findLecturerAssignmentById(client, assignmentId);
+        if (!assignment) {
+            throw new BusinessError('Lecturer assignment not found', 'ASSIGNMENT_NOT_FOUND', 404);
+        }
+
+        if (assignment.is_responsible) {
+            const lecturerCount = await termSubjectRepo.countLecturers(client, assignment.term_subject_id);
+            if (lecturerCount > 1) {
+                throw new BusinessError(
+                    'Cannot remove responsible lecturer. Please assign another responsible lecturer first.',
+                    'CANNOT_REMOVE_RESPONSIBLE',
+                    400
+                );
+            }
+        }
+
         await client.query('BEGIN');
 
         await termSubjectRepo.deleteLecturerAssignment(client, assignmentId);
@@ -332,12 +327,17 @@ export async function removeLecturer(assignmentId) {
  * Get responsible lecturer for term subject
  */
 export async function getResponsibleLecturer(termSubjectId) {
-    const termSubject = await termSubjectRepo.findTermSubjectById(termSubjectId);
-    if (!termSubject) {
-        throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
-    }
+    const client = await pool.connect();
+    try {
+        const termSubject = await termSubjectRepo.findTermSubjectById(client, termSubjectId);
+        if (!termSubject) {
+            throw new BusinessError('Term subject not found', 'TERM_SUBJECT_NOT_FOUND', 404);
+        }
 
-    return await termSubjectRepo.findResponsibleLecturer(termSubjectId);
+        return await termSubjectRepo.findResponsibleLecturer(client, termSubjectId);
+    } finally {
+        client.release();
+    }
 }
 
 /**

@@ -221,8 +221,8 @@ export async function findWorkWithDetails(client, workId) {
             ts.subject_id,
             ts.is_active,
             -- ข้อมูลผู้สร้างและแก้ไข
-            cu.full_name AS created_by_name,
-            uu.full_name AS updated_by_name
+            CONCAT(cu.first_name_th, ' ', cu.last_name_th) AS created_by_name,
+            CONCAT(uu.first_name_th, ' ', uu.last_name_th) AS updated_by_name
         FROM work_details w
         LEFT JOIN term_subjects ts ON w.term_subject_id = ts.id
         LEFT JOIN users cu ON w.created_by = cu.id
@@ -257,7 +257,7 @@ export async function findWorksByTermId(client, termId) {
             w.updated_at,
             w.updated_by,
             ts.subject_id,
-            cu.full_name AS created_by_name
+            CONCAT(cu.first_name_th, ' ', cu.last_name_th) AS created_by_name
         FROM work_details w
         INNER JOIN term_subjects ts ON w.term_subject_id = ts.id
         LEFT JOIN users cu ON w.created_by = cu.id

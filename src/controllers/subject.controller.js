@@ -51,26 +51,6 @@ export async function createSubject(req, res) {
             });
         }
 
-        // Check if program exists
-        const programExistsCheck = await subjectService.programExists(program_id);
-        if (!programExistsCheck) {
-            return res.status(404).json({
-                success: false,
-                message: `Program with id ${program_id} not found`,
-            });
-        }
-
-        // Check if all student years exist
-        for (const yearId of student_year_ids) {
-            const studentYearExistsCheck = await subjectService.studentYearExists(yearId);
-            if (!studentYearExistsCheck) {
-                return res.status(404).json({
-                    success: false,
-                    message: `Student year with id ${yearId} not found`,
-                });
-            }
-        }
-
         // Create subject
         const subject = await subjectService.createSubject({
             code_th,
@@ -217,35 +197,12 @@ export async function updateSubject(req, res) {
             }
         }
 
-        // Validate foreign keys if provided
-        if (updateData.program_id) {
-            const programExistsCheck = await subjectService.programExists(updateData.program_id);
-            if (!programExistsCheck) {
-                return res.status(404).json({
-                    success: false,
-                    message: `Program with id ${updateData.program_id} not found`,
-                });
-            }
-        }
-
         if (updateData.student_year_ids) {
-            // Validate it's an array
             if (!Array.isArray(updateData.student_year_ids) || updateData.student_year_ids.length === 0) {
                 return res.status(400).json({
                     success: false,
                     message: 'student_year_ids must be a non-empty array',
                 });
-            }
-
-            // Validate all student years exist
-            for (const yearId of updateData.student_year_ids) {
-                const studentYearExistsCheck = await subjectService.studentYearExists(yearId);
-                if (!studentYearExistsCheck) {
-                    return res.status(404).json({
-                        success: false,
-                        message: `Student year with id ${yearId} not found`,
-                    });
-                }
             }
         }
 
