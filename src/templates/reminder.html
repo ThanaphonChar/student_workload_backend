@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แจ้งเตือน: ส่งเอกสารเค้าโครงรายวิชา</title>
+</head>
+
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;
+                      box-shadow:0 4px 16px rgba(0,0,0,0.08);max-width:600px;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#050C9C;padding:28px 32px;">
+              <p style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:1px;">SCITU</p>
+              <p style="margin:6px 0 0;color:#a5b4fc;font-size:13px;">ระบบติดตามภาระงานนักศึกษา
+                หลักสูตรวิทยาศาสตร์บัณฑิต สาขาวิชาเทคโนโลยีและนวัตกรรมดิจิทัล</p>
+            </td>
+          </tr>
+
+          <!-- Alert Banner -->
+          <tr>
+            <td style="background:#fffbeb;padding:16px 32px;border-bottom:1px solid #fde68a;">
+              <p style="margin:0;color:#92400e;font-size:15px;font-weight:600;">
+                &#9888; แจ้งเตือน: กรุณาส่งเอกสารเค้าโครงรายวิชา
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 8px;color:#374151;font-size:15px;">
+                เรียน อาจารย์ <strong>{{instructorName}}</strong>
+              </p>
+              <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+                ขอแจ้งเตือนให้ท่านส่งเอกสารเค้าโครงรายวิชาในระบบ
+                เนื่องจากยังไม่พบการส่งเอกสาร หรือเอกสารถูกปฏิเสธ
+              </p>
+
+              <!-- Subject Detail Table -->
+              <table width="100%" cellpadding="0" cellspacing="0"
+                style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin:0 0 20px;">
+                <tr>
+                  <td style="background:#f9fafb;padding:12px 16px;border-bottom:1px solid #e5e7eb;">
+                    <p style="margin:0;color:#374151;font-size:13px;font-weight:600;">รายละเอียดรายวิชา</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">
+                      รหัสวิชา:
+                      <span style="color:#111827;font-weight:600;">{{subjectCode}}</span>
+                    </p>
+                    <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">
+                      ชื่อวิชา:
+                      <span style="color:#111827;font-weight:600;">{{subjectName}}</span>
+                    </p>
+                    <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">
+                      ภาคการศึกษา:
+                      <span style="color:#111827;font-weight:600;">{{termLabel}}</span>
+                    </p>
+                    <p style="margin:0;color:#6b7280;font-size:13px;">
+                      วันเปิดเทอม:
+                      <span style="color:#111827;font-weight:600;">{{deadline}}</span>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Days Left Alert -->
+              <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+                          padding:14px 16px;margin:0 0 24px;">
+                <p style="margin:0;color:#991b1b;font-size:15px;font-weight:600;">
+                  &#9200; {{daysLeft}}
+                </p>
+              </div>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+                <tr>
+                  <td align="center">
+                    <a href="{{loginUrl}}" style="display:inline-block;background:#050C9C;color:#ffffff;
+                              text-decoration:none;padding:14px 36px;border-radius:8px;
+                              font-size:15px;font-weight:600;letter-spacing:0.3px;">
+                      เข้าสู่ระบบเพื่อส่งเอกสาร
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;color:#9ca3af;font-size:12px;">
+                หากท่านได้ส่งเอกสารแล้ว กรุณาตรวจสอบสถานะในระบบ
+                หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่วิชาการ
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f9fafb;padding:20px 32px;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
+                ระบบติดตามภาระงานนักศึกษาหลักสูตรวิทยาศาสตร์บัณฑิต สาขาวิชาเทคโนโลยีและนวัตกรรมดิจิทัล &middot;
+                อีเมลนี้ส่งโดยอัตโนมัติ กรุณาอย่าตอบกลับ
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

@@ -1,0 +1,16 @@
+name: Email Reminder
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 08:00 ICT = 01:00 UTC ทุกวัน
+  workflow_dispatch:       # trigger มือได้สำหรับ test
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send reminder emails
+        run: |
+          curl -f -X GET \
+            "${{ secrets.BACKEND_URL }}/api/internal/reminders/send" \
+            -H "x-internal-key: ${{ secrets.INTERNAL_API_KEY }}"

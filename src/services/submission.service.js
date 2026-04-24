@@ -5,6 +5,7 @@
 
 import { pool } from '../config/db.js';
 import * as submissionRepository from '../repositories/submission.repository.js';
+import * as emailService from './email.service.js';
 
 function parsePositiveInt(value) {
     const parsed = Number(value);
@@ -151,6 +152,39 @@ export async function reviewSubmission(submissionId, payload, reviewerId) {
         );
 
         await client.query('COMMIT');
+
+        // ดึงข้อมูล email ก่อน release client (ภายหลัง transaction commit แล้ว)
+        try {
+            const emailDetails = await submissionRepository.getSubmissionEmailDetails(
+                client,
+                parsedSubmissionId
+            );
+
+            console.log('[Service] emailDetails from DB:', emailDetails);
+
+            if (emailDetails?.email) {
+                console.log('[Service] Calling sendReviewNotification with:', {
+                    to: emailDetails.email,
+                    subjectCode: emailDetails.subject_code
+                });
+                // ไม่ await — fire-and-forget, ไม่ block response
+                emailService.sendReviewNotification({
+                    to: emailDetails.email,
+                    instructorName: emailDetails.instructor_name,
+                    documentType: emailDetails.document_type === 'outline'
+                        ? 'เค้าโครงรายวิชา'
+                        : 'รายงานผล',
+                    action,
+                    note: note || null,
+                    reason: reason || null,
+                    subjectCode: emailDetails.subject_code,
+                    subjectName: emailDetails.subject_name,
+                }).catch(err => console.error('[Email] review notification failed:', err));
+            }
+        } catch (err) {
+            console.error('[Email] Failed to fetch email details for submission', parsedSubmissionId, ':', err.message);
+        }
+
         return reviewed;
     } catch (error) {
         await client.query('ROLLBACK');
