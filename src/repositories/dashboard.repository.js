@@ -6,39 +6,40 @@
  * - Workload chart data per week
  */
 
-import pool from '../config/db.js';
+import { pool } from '../config/db.js';
 
 /**
  * ดึงข้อมูล Summary Statistics สำหรับ Dashboard
+ * @param {Object} client - Database client
  * @param {number} termId - ID ของ term ที่ต้องการดูข้อมูล
  * @returns {Promise<Object>} สถิติรวมทั้งหมด
  */
-export async function getSummaryStats(termId) {
+export async function getSummaryStats(client, termId) {
     const query = `
-        SELECT 
+        SELECT
             -- 1 รายวิชาทั้งหมด: นับจำนวน term_subjects
             COUNT(ts.id) AS total_subjects,
-            
+
             -- 2 เค้าโครงรายวิชา: นับวิชาที่มี outline_status = true
-            COUNT(CASE 
-                WHEN ts.outline_status = true THEN 1 
+            COUNT(CASE
+                WHEN ts.outline_status = true THEN 1
             END) AS outline_submitted_count,
-            
+
             -- 3 ภาระงาน: นับวิชาที่มี workload_status = true
-            COUNT(CASE 
-                WHEN ts.workload_status = true THEN 1 
+            COUNT(CASE
+                WHEN ts.workload_status = true THEN 1
             END) AS workload_filled_count,
-            
+
             -- 4 รายงานผล: นับวิชาที่มี report_status = true
-            COUNT(CASE 
-                WHEN ts.report_status = true THEN 1 
+            COUNT(CASE
+                WHEN ts.report_status = true THEN 1
             END) AS report_submitted_count
-            
+
         FROM term_subjects ts
         WHERE ts.term_id = $1
     `;
 
-    const result = await pool.query(query, [termId]);
+    const result = await client.query(query, [termId]);
     const row = result.rows[0];
 
     return {
@@ -51,39 +52,40 @@ export async function getSummaryStats(termId) {
 
 /**
  * ดึงค่าเฉลี่ยภาระงาน (hours_per_week) แยกตามปีการศึกษา (year_level)
+ * @param {Object} client - Database client
  * @param {number} termId - ID ของ term
  * @returns {Promise<Array>} Array ของ {yearLevel, avgHours}
  */
-export async function getAverageWorkloadByYear(termId) {
+export async function getAverageWorkloadByYear(client, termId) {
     const query = `
-        SELECT 
+        SELECT
             ssy.student_year AS year_level,
             COALESCE(ROUND(AVG(wd.hours_per_week)::numeric, 1), 0) AS avg_hours
         FROM term_subjects ts
-        
+
         -- JOIN กับ subjects เพื่อดึงรายวิชา
-        INNER JOIN subjects s 
+        INNER JOIN subjects s
             ON ts.subject_id = s.id
-        
+
         -- JOIN กับ subjects_student_years เพื่อดึงชั้นปี
         INNER JOIN subjects_student_years ssy_link
             ON s.id = ssy_link.subject_id
-        
+
         -- JOIN กับ student_years เพื่อดึงเลขชั้นปี
         INNER JOIN student_years ssy
             ON ssy_link.student_year_id = ssy.id
-        
+
         -- LEFT JOIN กับ work_details
-        LEFT JOIN work_details wd 
+        LEFT JOIN work_details wd
             ON ts.id = wd.term_subject_id
-        
+
         WHERE ts.term_id = $1
-        
+
         GROUP BY ssy.student_year
         ORDER BY ssy.student_year ASC
     `;
 
-    const result = await pool.query(query, [termId]);
+    const result = await client.query(query, [termId]);
 
     // สร้าง result สำหรับปี 1-4 (ถ้าไม่มีข้อมูลให้ 0)
     const yearData = [1, 2, 3, 4].map(year => {
@@ -100,12 +102,13 @@ export async function getAverageWorkloadByYear(termId) {
 /**
  * ดึงข้อมูล Workload Chart แยกตามสัปดาห์
  * สามารถ filter ตาม year_levels ได้
- * 
+ *
+ * @param {Object} client - Database client
  * @param {number} termId - ID ของ term
  * @param {Array<number>} yearLevels - Array ของ year levels ที่ต้องการดู เช่น [1, 2] หรือ [1,2,3,4]
  * @returns {Promise<Array>} Array ของ {week, totalHours}
  */
-export async function getWorkloadChartData(termId, yearLevels = [1, 2, 3, 4]) {
+export async function getWorkloadChartData(client, termId, yearLevels = [1, 2, 3, 4]) {
     // สร้าง placeholder สำหรับ year_levels
     const placeholders = yearLevels.map((_, idx) => `$${idx + 2}`).join(',');
 
@@ -120,7 +123,7 @@ export async function getWorkloadChartData(termId, yearLevels = [1, 2, 3, 4]) {
         ),
         filtered_workloads AS (
             -- ดึงข้อมูล work_details ที่ filter แล้ว
-            SELECT 
+            SELECT
                 wd.hours_per_week,
                 wd.start_date,
                 wd.end_date,
@@ -134,10 +137,10 @@ export async function getWorkloadChartData(termId, yearLevels = [1, 2, 3, 4]) {
             WHERE ts.term_id = $1
               AND ssy.student_year IN (${placeholders})
         )
-        SELECT 
+        SELECT
             w.week_number,
             COALESCE(SUM(
-                CASE 
+                CASE
                     -- ตรวจสอบว่า work นี้อยู่ในสัปดาห์ที่เท่าไหร่
                     WHEN fw.start_date <= (fw.term_start_date + ((w.week_number) * INTERVAL '7 days'))
                      AND fw.end_date >= (fw.term_start_date + ((w.week_number - 1) * INTERVAL '7 days'))
@@ -152,7 +155,7 @@ export async function getWorkloadChartData(termId, yearLevels = [1, 2, 3, 4]) {
     `;
 
     const params = [termId, ...yearLevels];
-    const result = await pool.query(query, params);
+    const result = await client.query(query, params);
 
     return result.rows.map(row => ({
         week: row.week_number,
@@ -165,12 +168,13 @@ export async function getWorkloadChartData(termId, yearLevels = [1, 2, 3, 4]) {
  * 1. หา term ที่ถูก set is_active = true
  * 2. fallback: หา term ที่วันปัจจุบันอยู่ในช่วง term_start_date ถึง term_end_date
  * 3. fallback: เอา term ล่าสุด
+ * @param {Object} client - Database client
  * @returns {Promise<Object|null>} ข้อมูล term หรือ null ถ้าไม่มี
  */
-export async function getActiveTerm() {
+export async function getActiveTerm(client) {
     // 1 หา term ที่ถูก set active
     const activeQuery = `
-        SELECT 
+        SELECT
             id,
             academic_year,
             academic_sector,
@@ -182,14 +186,14 @@ export async function getActiveTerm() {
         LIMIT 1
     `;
 
-    const activeResult = await pool.query(activeQuery);
+    const activeResult = await client.query(activeQuery);
     if (activeResult.rows[0]) {
         return activeResult.rows[0];
     }
 
     // 2 fallback: ใช้วันที่
     const dateQuery = `
-        SELECT 
+        SELECT
             id,
             academic_year,
             academic_sector,
@@ -201,14 +205,14 @@ export async function getActiveTerm() {
         LIMIT 1
     `;
 
-    const dateResult = await pool.query(dateQuery);
+    const dateResult = await client.query(dateQuery);
     if (dateResult.rows[0]) {
         return dateResult.rows[0];
     }
 
     // 3 fallback: term ล่าสุด
     const fallbackQuery = `
-        SELECT 
+        SELECT
             id,
             academic_year,
             academic_sector,
@@ -219,7 +223,7 @@ export async function getActiveTerm() {
         LIMIT 1
     `;
 
-    const fallbackResult = await pool.query(fallbackQuery);
+    const fallbackResult = await client.query(fallbackQuery);
     return fallbackResult.rows[0] || null;
 }
 

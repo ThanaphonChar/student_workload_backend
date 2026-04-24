@@ -91,7 +91,7 @@ export async function deleteSubjectStudentYears(client, subjectId) {
 export async function findStudentYearsBySubjectId(subjectId) {
     const sql = `
         SELECT ssy.student_year_id
-        FROM subjects_student_years ssy
+        FROM subject_student_years ssy
         WHERE ssy.subject_id = $1
         ORDER BY ssy.student_year_id ASC
     `;
