@@ -268,6 +268,46 @@ export async function markTermSubjectSubmissionPending(client, termSubjectId, do
 }
 
 /**
+ * ดึง email + ชื่ออาจารย์ + ชื่อวิชาจาก submission สำหรับ email notification
+ * @param {Object} client
+ * @param {number} submissionId
+ * @returns {Promise<{email, instructor_name, subject_name, document_type}|undefined>}
+ */
+export async function getSubmissionEmailDetails(client, submissionId) {
+    const sql = `
+        SELECT
+            u.email,
+            CONCAT(u.first_name_th, ' ', u.last_name_th)  AS instructor_name,
+            s.code_th,
+            s.code_eng,
+            s.name_th,
+            s.name_eng,
+            ds.document_type
+        FROM document_submissions ds
+        JOIN users u         ON u.id = ds.submitted_by
+        JOIN term_subjects ts ON ts.id = ds.term_subject_id
+        JOIN subjects s      ON s.id = ts.subject_id
+        WHERE ds.id = $1
+        LIMIT 1
+    `;
+    const result = await client.query(sql, [submissionId]);
+    const row = result.rows[0];
+
+    if (row) {
+        // ส่งค่าชีทดี สำหรับการใช้งาน
+        console.log('[Database] Row from subjects:', {
+            code_th: row.code_th,
+            code_eng: row.code_eng,
+            name_th: row.name_th,
+            name_eng: row.name_eng
+        });
+        row.subject_code = row.code_th || row.code_eng;
+        row.subject_name = row.name_th || row.name_eng;
+    }
+    return row;
+}
+
+/**
  * ดึงประวัติ submission ตามวิชา + ประเภทเอกสาร
  */
 export async function getSubmissionHistory(client, termSubjectId, documentType) {

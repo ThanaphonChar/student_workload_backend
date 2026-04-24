@@ -9,6 +9,7 @@ import mySubjectsRoute from './mySubjects.route.js';
 import dashboardRoute from './dashboard.route.js';
 import permissionRoutes from './permission.routes.js';
 import submissionRoutes from './submission.routes.js';
+import reminderRoutes from './reminder.routes.js';
 
 const router = express.Router();
 
@@ -46,5 +47,8 @@ router.use('/permissions', permissionRoutes);
 
 // Document submission routes (protected)
 router.use('/submissions', submissionRoutes);
+
+// Internal reminder route (protected by x-internal-key header)
+router.use('/internal/reminders', reminderRoutes);
 
 export default router;
