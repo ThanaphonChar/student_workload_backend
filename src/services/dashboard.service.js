@@ -189,9 +189,43 @@ export async function getActiveTermInfo() {
     }
 }
 
+/**
+ * ดึง term subjects พร้อม workload รวมต่อสัปดาห์ (server-side computed)
+ * No N+1 — single query returns all data
+ *
+ * @param {number} termId - Term ID
+ * @returns {Promise<Array>} Array of subjects with workload data
+ */
+export async function getStudentSubjects(termId) {
+    console.log('[getStudentSubjects] Input termId:', termId, 'type:', typeof termId);
+
+    const parsed = parseOptionalPositiveInt(termId, 'termId');
+    console.log('[getStudentSubjects] Parsed termId:', parsed);
+
+    if (!parsed) {
+        const err = new Error('termId ไม่ถูกต้อง');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const client = await pool.connect();
+    try {
+        console.log('[getStudentSubjects] Calling getStudentSubjectsWithWorkload with termId:', parsed);
+        const result = await dashboardRepository.getStudentSubjectsWithWorkload(client, parsed);
+        console.log('[getStudentSubjects] Success. Got', result.length, 'subjects');
+        return result;
+    } catch (error) {
+        console.error('[getStudentSubjects] Error:', error.message, error.stack);
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 export default {
     getSummaryStatistics,
     getAverageWorkload,
     getWorkloadChart,
-    getActiveTermInfo
+    getActiveTermInfo,
+    getStudentSubjects
 };

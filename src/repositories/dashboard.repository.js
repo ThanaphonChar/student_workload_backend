@@ -227,9 +227,123 @@ export async function getActiveTerm(client) {
     return fallbackResult.rows[0] || null;
 }
 
+/**
+ * ดึง term subjects พร้อม workload รวมต่อสัปดาห์สำหรับ student dashboard
+ * Single query — no N+1
+ * Returns all subjects in the term with workload computed server-side
+ *
+ * @param {Object} client - Database client
+ * @param {number} termId - Term ID
+ * @returns {Promise<Array>} List of subjects with workload data
+ */
+export async function getStudentSubjectsWithWorkload(client, termId) {
+    // Simple approach: fetch subjects first, then fetch works and calculate weekly_hours in JS
+    // This avoids complex SQL and is more maintainable
+
+    console.log('[getStudentSubjectsWithWorkload] Starting for termId:', termId);
+
+    const subjectsQuery = `
+        SELECT
+            ts.id,
+            ts.subject_id,
+            s.code_eng,
+            s.code_th,
+            s.name_th,
+            s.name_eng,
+            s.credit AS credits,
+            t.term_start_date,
+            COALESCE(
+                jsonb_agg(DISTINCT sy.student_year) FILTER (WHERE sy.id IS NOT NULL),
+                '[]'::jsonb
+            ) AS student_year_ids
+        FROM term_subjects ts
+        INNER JOIN subjects s ON s.id = ts.subject_id
+        INNER JOIN terms t ON t.id = ts.term_id
+        LEFT JOIN subjects_student_years ssy ON ssy.subject_id = s.id
+        LEFT JOIN student_years sy ON sy.id = ssy.student_year_id
+        WHERE ts.term_id = $1 AND ts.is_active = true
+        GROUP BY ts.id, s.id, t.term_start_date
+        ORDER BY COALESCE(s.code_eng, s.code_th) ASC
+    `;
+
+    console.log('[getStudentSubjectsWithWorkload] Executing subjects query...');
+    const subjectsResult = await client.query(subjectsQuery, [termId]);
+    const subjects = subjectsResult.rows;
+    console.log('[getStudentSubjectsWithWorkload] Got', subjects.length, 'subjects');
+
+    // Fetch all works for this term in one query
+    const worksQuery = `
+        SELECT
+            wd.term_subject_id,
+            wd.start_date,
+            wd.end_date,
+            wd.hours_per_week
+        FROM work_details wd
+        INNER JOIN term_subjects ts ON ts.id = wd.term_subject_id
+        WHERE ts.term_id = $1
+    `;
+
+    console.log('[getStudentSubjectsWithWorkload] Executing works query...');
+    const worksResult = await client.query(worksQuery, [termId]);
+    const worksMap = new Map();
+
+    // Group works by term_subject_id
+    worksResult.rows.forEach(work => {
+        if (!worksMap.has(work.term_subject_id)) {
+            worksMap.set(work.term_subject_id, []);
+        }
+        worksMap.get(work.term_subject_id).push(work);
+    });
+    console.log('[getStudentSubjectsWithWorkload] Got', worksResult.rows.length, 'works');
+
+    // Calculate weekly hours for each subject
+    const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+    const WEEKS = 15;
+
+    const result = subjects.map(subject => {
+        const termStartDate = new Date(subject.term_start_date);
+        const weeklyHours = Array(WEEKS).fill(0);
+        const works = worksMap.get(subject.id) || [];
+        let totalHours = 0;
+
+        works.forEach(work => {
+            const hpw = Number(work.hours_per_week) || 0;
+            if (!hpw) return;
+
+            const workStart = new Date(work.start_date);
+            const workEnd = new Date(work.end_date);
+            const startWeek = Math.max(0, Math.floor((workStart - termStartDate) / MS_PER_WEEK));
+            const endWeek = Math.min(WEEKS - 1, Math.floor((workEnd - termStartDate) / MS_PER_WEEK));
+
+            for (let w = startWeek; w <= endWeek; w++) {
+                weeklyHours[w] += hpw;
+                totalHours += hpw;
+            }
+        });
+
+        return {
+            id: subject.id,
+            subject_id: subject.subject_id,
+            code_eng: subject.code_eng,
+            code_th: subject.code_th,
+            name_th: subject.name_th,
+            name_eng: subject.name_eng,
+            credits: Number(subject.credits) || 0,
+            student_year_ids: subject.student_year_ids || [],
+            workload_count: works.length,
+            weekly_hours: weeklyHours,
+            total_hours: totalHours,
+        };
+    });
+
+    console.log('[getStudentSubjectsWithWorkload] Returning', result.length, 'subjects with computed hours');
+    return result;
+}
+
 export default {
     getSummaryStats,
     getAverageWorkloadByYear,
     getWorkloadChartData,
-    getActiveTerm
+    getActiveTerm,
+    getStudentSubjectsWithWorkload
 };

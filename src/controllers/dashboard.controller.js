@@ -106,9 +106,30 @@ export async function getActiveTerm(req, res) {
     }
 }
 
+/**
+ * GET /api/dashboard/student-subjects
+ * ดึง term subjects พร้อม workload รวมต่อสัปดาห์
+ * Single query — no N+1
+ */
+export async function getStudentSubjects(req, res) {
+    try {
+        const termId = parseOptionalPositiveInt(req.query.termId, 'termId');
+        const result = await dashboardService.getStudentSubjects(termId);
+
+        res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error('Error in getStudentSubjects:', error);
+        return handleDashboardError(res, error, 'ไม่สามารถโหลดข้อมูลรายวิชาได้');
+    }
+}
+
 export default {
     getSummaryStatistics,
     getAverageWorkload,
     getWorkloadChart,
-    getActiveTerm
+    getActiveTerm,
+    getStudentSubjects
 };

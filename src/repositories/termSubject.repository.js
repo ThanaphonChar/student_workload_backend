@@ -47,17 +47,24 @@ export async function insertTermSubject(client, termSubjectData, userId) {
  */
 export async function findTermSubjectsByTermId(client, termId) {
     const sql = `
-        SELECT 
+        SELECT
             ts.*,
             s.code_th,
             s.code_eng,
             s.name_th,
             s.name_eng,
-            s.credit
+            s.credit,
+            COALESCE(
+                ARRAY_AGG(DISTINCT sy.student_year) FILTER (WHERE sy.student_year IS NOT NULL),
+                '{}'
+            ) AS student_year_ids
         FROM term_subjects ts
         JOIN subjects s ON ts.subject_id = s.id
+        LEFT JOIN subjects_student_years ssy ON s.id = ssy.subject_id
+        LEFT JOIN student_years sy ON ssy.student_year_id = sy.id
         WHERE ts.term_id = $1
           AND ts.is_active = true
+        GROUP BY ts.id, s.code_th, s.code_eng, s.name_th, s.name_eng, s.credit
         ORDER BY s.code_eng
     `;
     const result = await client.query(sql, [termId]);
