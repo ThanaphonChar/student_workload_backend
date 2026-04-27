@@ -63,4 +63,16 @@ router.get(
     dashboardController.getActiveTerm
 );
 
+/**
+ * @route   GET /api/dashboard/student-subjects
+ * @desc    ดึง term subjects พร้อม workload รวมต่อสัปดาห์ สำหรับ student dashboard
+ * @query   termId (required) - ID ของ term
+ * @access  Protected (Student, Academic Officer, Program Chair)
+ */
+router.get(
+    '/student-subjects',
+    authorizeRoles(ROLES.STUDENT, ROLES.ACADEMIC_OFFICER, ROLES.PROGRAM_CHAIR),
+    dashboardController.getStudentSubjects
+);
+
 export default router;
