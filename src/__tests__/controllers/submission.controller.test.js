@@ -1,13 +1,22 @@
 import { jest } from '@jest/globals';
 
-jest.mock('../../services/submission.service.js');
+// ── Service mock functions ────────────────────────────────────────────────────
+const mockService = {
+    getMySubjectsWithStatus: jest.fn(),
+    createSubmission: jest.fn(),
+    reviewSubmission: jest.fn(),
+    getSubmissionHistory: jest.fn(),
+};
 
-import request from 'supertest';
-import express from 'express';
-import * as submissionService from '../../services/submission.service.js';
-import * as submissionController from '../../controllers/submission.controller.js';
+// ── Register mock BEFORE dynamic imports ─────────────────────────────────────
+jest.unstable_mockModule('../../services/submission.service.js', () => mockService);
 
-// Minimal express app — bypasses auth middleware, injects req.user
+// ── Dynamic imports (after mock registration) ─────────────────────────────────
+const { default: request } = await import('supertest');
+const { default: express } = await import('express');
+const submissionController = await import('../../controllers/submission.controller.js');
+
+// ── Minimal app — no auth middleware, injects req.user ───────────────────────
 const app = express();
 app.use(express.json());
 app.use((req, _res, next) => {
@@ -19,6 +28,7 @@ app.post('/submissions', submissionController.createSubmission);
 app.patch('/submissions/:submissionId/review', submissionController.reviewSubmission);
 app.get('/submissions/:termSubjectId/history/:documentType', submissionController.getSubmissionHistory);
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const httpError = (message, statusCode = 400) => {
     const err = new Error(message);
     err.statusCode = statusCode;
@@ -27,13 +37,13 @@ const httpError = (message, statusCode = 400) => {
 
 beforeEach(() => jest.clearAllMocks());
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // GET /submissions/my-subjects/:termId
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('GET /submissions/my-subjects/:termId', () => {
     test('200 with { success: true, data } on success', async () => {
         const mockData = [{ term_subject_id: 1, subject_code: 'CS101' }];
-        submissionService.getMySubjectsWithStatus.mockResolvedValueOnce(mockData);
+        mockService.getMySubjectsWithStatus.mockResolvedValueOnce(mockData);
 
         const res = await request(app).get('/submissions/my-subjects/1');
 
@@ -43,7 +53,7 @@ describe('GET /submissions/my-subjects/:termId', () => {
     });
 
     test('400 with { success: false, message } when service throws 400', async () => {
-        submissionService.getMySubjectsWithStatus.mockRejectedValueOnce(
+        mockService.getMySubjectsWithStatus.mockRejectedValueOnce(
             httpError('รหัสภาคการศึกษาไม่ถูกต้อง', 400)
         );
 
@@ -55,7 +65,7 @@ describe('GET /submissions/my-subjects/:termId', () => {
     });
 
     test('401 when service throws 401', async () => {
-        submissionService.getMySubjectsWithStatus.mockRejectedValueOnce(
+        mockService.getMySubjectsWithStatus.mockRejectedValueOnce(
             httpError('ข้อมูลผู้ใช้งานไม่ถูกต้อง', 401)
         );
 
@@ -66,7 +76,7 @@ describe('GET /submissions/my-subjects/:termId', () => {
     });
 
     test('500 when service throws without statusCode', async () => {
-        submissionService.getMySubjectsWithStatus.mockRejectedValueOnce(new Error('Unexpected'));
+        mockService.getMySubjectsWithStatus.mockRejectedValueOnce(new Error('Unexpected'));
 
         const res = await request(app).get('/submissions/my-subjects/1');
 
@@ -75,9 +85,9 @@ describe('GET /submissions/my-subjects/:termId', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // POST /submissions
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('POST /submissions', () => {
     const validBody = {
         term_subject_id: 1,
@@ -87,7 +97,7 @@ describe('POST /submissions', () => {
     };
 
     test('201 with success message on success', async () => {
-        submissionService.createSubmission.mockResolvedValueOnce({ id: 1, status: 'pending' });
+        mockService.createSubmission.mockResolvedValueOnce({ id: 1, status: 'pending' });
 
         const res = await request(app).post('/submissions').send(validBody);
 
@@ -98,7 +108,7 @@ describe('POST /submissions', () => {
     });
 
     test('400 when service throws validation error', async () => {
-        submissionService.createSubmission.mockRejectedValueOnce(
+        mockService.createSubmission.mockRejectedValueOnce(
             httpError('ข้อมูลไฟล์ไม่ครบถ้วน', 400)
         );
 
@@ -109,7 +119,7 @@ describe('POST /submissions', () => {
     });
 
     test('500 on unexpected error', async () => {
-        submissionService.createSubmission.mockRejectedValueOnce(new Error('Unexpected'));
+        mockService.createSubmission.mockRejectedValueOnce(new Error('Unexpected'));
 
         const res = await request(app).post('/submissions').send(validBody);
 
@@ -117,9 +127,9 @@ describe('POST /submissions', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // PATCH /submissions/:submissionId/review
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('PATCH /submissions/:submissionId/review', () => {
     const validBody = { action: 'approved', note: 'OK' };
     const reviewedResult = {
@@ -128,7 +138,7 @@ describe('PATCH /submissions/:submissionId/review', () => {
     };
 
     test('200 with { success: true, data, message: บันทึกผลการตรวจสอบสำเร็จ }', async () => {
-        submissionService.reviewSubmission.mockResolvedValueOnce(reviewedResult);
+        mockService.reviewSubmission.mockResolvedValueOnce(reviewedResult);
 
         const res = await request(app).patch('/submissions/1/review').send(validBody);
 
@@ -139,7 +149,7 @@ describe('PATCH /submissions/:submissionId/review', () => {
     });
 
     test('400 when action is missing (service throws 400)', async () => {
-        submissionService.reviewSubmission.mockRejectedValueOnce(
+        mockService.reviewSubmission.mockRejectedValueOnce(
             httpError('การดำเนินการไม่ถูกต้อง', 400)
         );
 
@@ -150,18 +160,20 @@ describe('PATCH /submissions/:submissionId/review', () => {
     });
 
     test('400 when action is rejected but reason is empty', async () => {
-        submissionService.reviewSubmission.mockRejectedValueOnce(
+        mockService.reviewSubmission.mockRejectedValueOnce(
             httpError('กรุณาระบุเหตุผลการปฏิเสธ', 400)
         );
 
-        const res = await request(app).patch('/submissions/1/review').send({ action: 'rejected', reason: '' });
+        const res = await request(app)
+            .patch('/submissions/1/review')
+            .send({ action: 'rejected', reason: '' });
 
         expect(res.status).toBe(400);
         expect(res.body.message).toBe('กรุณาระบุเหตุผลการปฏิเสธ');
     });
 
     test('404 when submission not found', async () => {
-        submissionService.reviewSubmission.mockRejectedValueOnce(
+        mockService.reviewSubmission.mockRejectedValueOnce(
             httpError('ไม่พบรายการส่งเอกสาร', 404)
         );
 
@@ -171,7 +183,7 @@ describe('PATCH /submissions/:submissionId/review', () => {
     });
 
     test('500 on unexpected error', async () => {
-        submissionService.reviewSubmission.mockRejectedValueOnce(new Error('Unexpected'));
+        mockService.reviewSubmission.mockRejectedValueOnce(new Error('Unexpected'));
 
         const res = await request(app).patch('/submissions/1/review').send(validBody);
 
@@ -179,13 +191,13 @@ describe('PATCH /submissions/:submissionId/review', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // GET /submissions/:termSubjectId/history/:documentType
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('GET /submissions/:termSubjectId/history/:documentType', () => {
     test('200 with data array', async () => {
         const historyData = [{ round_number: 1, event_type: 'submitted' }];
-        submissionService.getSubmissionHistory.mockResolvedValueOnce(historyData);
+        mockService.getSubmissionHistory.mockResolvedValueOnce(historyData);
 
         const res = await request(app).get('/submissions/1/history/outline');
 
@@ -195,7 +207,7 @@ describe('GET /submissions/:termSubjectId/history/:documentType', () => {
     });
 
     test('400 on invalid params (service throws 400)', async () => {
-        submissionService.getSubmissionHistory.mockRejectedValueOnce(
+        mockService.getSubmissionHistory.mockRejectedValueOnce(
             httpError('ประเภทเอกสารไม่ถูกต้อง', 400)
         );
 
@@ -206,7 +218,7 @@ describe('GET /submissions/:termSubjectId/history/:documentType', () => {
     });
 
     test('500 on unexpected error', async () => {
-        submissionService.getSubmissionHistory.mockRejectedValueOnce(new Error('Unexpected'));
+        mockService.getSubmissionHistory.mockRejectedValueOnce(new Error('Unexpected'));
 
         const res = await request(app).get('/submissions/1/history/outline');
 

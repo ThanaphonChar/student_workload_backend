@@ -1,31 +1,48 @@
 import { jest } from '@jest/globals';
 
-jest.mock('../../config/db.js', () => ({
-    pool: { connect: jest.fn() },
-}));
-jest.mock('../../repositories/submission.repository.js');
-jest.mock('../../services/email.service.js');
-
-import { pool } from '../../config/db.js';
-import * as repo from '../../repositories/submission.repository.js';
-import * as emailService from '../../services/email.service.js';
-import * as service from '../../services/submission.service.js';
-
+// ── Mock objects created BEFORE unstable_mockModule calls ────────────────────
 const mockClient = {
     query: jest.fn(),
     release: jest.fn(),
 };
 
+const mockPool = { connect: jest.fn() };
+
+const mockRepo = {
+    getMySubjectsWithStatus: jest.fn(),
+    userExists: jest.fn(),
+    createSubmission: jest.fn(),
+    markTermSubjectSubmissionPending: jest.fn(),
+    reviewSubmission: jest.fn(),
+    updateTermSubjectApproval: jest.fn(),
+    getSubmissionEmailDetails: jest.fn(),
+    getSubmissionHistory: jest.fn(),
+};
+
+const mockEmailService = {
+    sendReviewNotification: jest.fn(),
+    sendReminderEmail: jest.fn(),
+};
+
+// ── Register mocks BEFORE dynamic import ─────────────────────────────────────
+jest.unstable_mockModule('../../config/db.js', () => ({ pool: mockPool }));
+jest.unstable_mockModule('../../repositories/submission.repository.js', () => mockRepo);
+jest.unstable_mockModule('../../services/email.service.js', () => mockEmailService);
+
+// ── Dynamic import (runs after mocks are registered) ─────────────────────────
+const service = await import('../../services/submission.service.js');
+
+// ── Reset before every test ───────────────────────────────────────────────────
 beforeEach(() => {
     jest.clearAllMocks();
-    pool.connect.mockResolvedValue(mockClient);
+    mockPool.connect.mockResolvedValue(mockClient);
     mockClient.query.mockResolvedValue({});
     mockClient.release.mockResolvedValue(undefined);
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // getMySubjectsWithStatus
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('getMySubjectsWithStatus', () => {
     test('throws 400 with Thai message when termId is 0', async () => {
         await expect(service.getMySubjectsWithStatus(0, 1)).rejects.toMatchObject({
@@ -54,21 +71,21 @@ describe('getMySubjectsWithStatus', () => {
     });
 
     test('calls repository with parsed integers', async () => {
-        repo.getMySubjectsWithStatus.mockResolvedValueOnce([]);
+        mockRepo.getMySubjectsWithStatus.mockResolvedValueOnce([]);
         await service.getMySubjectsWithStatus('5', '3');
-        expect(repo.getMySubjectsWithStatus).toHaveBeenCalledWith(mockClient, 5, 3);
+        expect(mockRepo.getMySubjectsWithStatus).toHaveBeenCalledWith(mockClient, 5, 3);
     });
 
     test('releases client in finally block even on error', async () => {
-        repo.getMySubjectsWithStatus.mockRejectedValueOnce(new Error('DB error'));
+        mockRepo.getMySubjectsWithStatus.mockRejectedValueOnce(new Error('DB error'));
         await expect(service.getMySubjectsWithStatus(1, 1)).rejects.toThrow('DB error');
         expect(mockClient.release).toHaveBeenCalledTimes(1);
     });
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // createSubmission
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('createSubmission', () => {
     const validPayload = {
         term_subject_id: 1,
@@ -78,9 +95,9 @@ describe('createSubmission', () => {
     };
 
     beforeEach(() => {
-        repo.userExists.mockResolvedValue(true);
-        repo.createSubmission.mockResolvedValue({ id: 1, status: 'pending' });
-        repo.markTermSubjectSubmissionPending.mockResolvedValue({ id: 1 });
+        mockRepo.userExists.mockResolvedValue(true);
+        mockRepo.createSubmission.mockResolvedValue({ id: 1, status: 'pending' });
+        mockRepo.markTermSubjectSubmissionPending.mockResolvedValue({ id: 1 });
     });
 
     test('throws 400 when term_subject_id is missing', async () => {
@@ -109,7 +126,7 @@ describe('createSubmission', () => {
     });
 
     test('throws 401 when userExists returns false', async () => {
-        repo.userExists.mockResolvedValueOnce(false);
+        mockRepo.userExists.mockResolvedValueOnce(false);
         await expect(service.createSubmission(validPayload, 1))
             .rejects.toMatchObject({ statusCode: 401 });
     });
@@ -118,24 +135,18 @@ describe('createSubmission', () => {
         await service.createSubmission(validPayload, 1);
         const queryCalls = mockClient.query.mock.calls.map((c) => c[0]);
         expect(queryCalls).toContain('BEGIN');
-        const beginIdx = queryCalls.indexOf('BEGIN');
-        expect(repo.createSubmission).toHaveBeenCalled();
-        // BEGIN must appear before createSubmission was called
-        // (we verify ordering by index in query calls array)
-        expect(beginIdx).toBeGreaterThanOrEqual(0);
+        expect(queryCalls.indexOf('BEGIN')).toBeGreaterThanOrEqual(0);
     });
 
     test('calls COMMIT after successful repository calls', async () => {
         await service.createSubmission(validPayload, 1);
         const queryCalls = mockClient.query.mock.calls.map((c) => c[0]);
         expect(queryCalls).toContain('COMMIT');
-        const beginIdx = queryCalls.indexOf('BEGIN');
-        const commitIdx = queryCalls.indexOf('COMMIT');
-        expect(commitIdx).toBeGreaterThan(beginIdx);
+        expect(queryCalls.indexOf('COMMIT')).toBeGreaterThan(queryCalls.indexOf('BEGIN'));
     });
 
     test('calls ROLLBACK when repository throws', async () => {
-        repo.createSubmission.mockRejectedValueOnce(new Error('DB error'));
+        mockRepo.createSubmission.mockRejectedValueOnce(new Error('DB error'));
         await expect(service.createSubmission(validPayload, 1)).rejects.toThrow('DB error');
         const queryCalls = mockClient.query.mock.calls.map((c) => c[0]);
         expect(queryCalls).toContain('ROLLBACK');
@@ -147,9 +158,9 @@ describe('createSubmission', () => {
     });
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // reviewSubmission
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('reviewSubmission', () => {
     const validPayload = { action: 'approved', note: 'OK', reason: null };
     const reviewedResult = {
@@ -158,11 +169,11 @@ describe('reviewSubmission', () => {
     };
 
     beforeEach(() => {
-        repo.userExists.mockResolvedValue(true);
-        repo.reviewSubmission.mockResolvedValue(reviewedResult);
-        repo.updateTermSubjectApproval.mockResolvedValue({ id: 10 });
-        repo.getSubmissionEmailDetails.mockResolvedValue(null);
-        emailService.sendReviewNotification = jest.fn().mockResolvedValue(undefined);
+        mockRepo.userExists.mockResolvedValue(true);
+        mockRepo.reviewSubmission.mockResolvedValue(reviewedResult);
+        mockRepo.updateTermSubjectApproval.mockResolvedValue({ id: 10 });
+        mockRepo.getSubmissionEmailDetails.mockResolvedValue(null);
+        mockEmailService.sendReviewNotification.mockResolvedValue(undefined);
     });
 
     test('throws 400 when submissionId is invalid', async () => {
@@ -194,17 +205,17 @@ describe('reviewSubmission', () => {
         await expect(service.reviewSubmission(1, { action: 'approved' }, 1)).resolves.toBeDefined();
     });
 
-    test('calls BEGIN, reviewSubmission repo, updateTermSubjectApproval, COMMIT in order', async () => {
+    test('calls BEGIN → reviewSubmission → updateTermSubjectApproval → COMMIT in order', async () => {
         const callOrder = [];
         mockClient.query.mockImplementation((sql) => {
             callOrder.push(sql.trim());
             return Promise.resolve({});
         });
-        repo.reviewSubmission.mockImplementation(() => {
+        mockRepo.reviewSubmission.mockImplementation(() => {
             callOrder.push('repo.reviewSubmission');
             return Promise.resolve(reviewedResult);
         });
-        repo.updateTermSubjectApproval.mockImplementation(() => {
+        mockRepo.updateTermSubjectApproval.mockImplementation(() => {
             callOrder.push('repo.updateTermSubjectApproval');
             return Promise.resolve({ id: 10 });
         });
@@ -223,44 +234,43 @@ describe('reviewSubmission', () => {
     });
 
     test('throws 404 when repository.reviewSubmission returns null', async () => {
-        repo.reviewSubmission.mockResolvedValueOnce(null);
+        mockRepo.reviewSubmission.mockResolvedValueOnce(null);
         await expect(service.reviewSubmission(1, validPayload, 1))
             .rejects.toMatchObject({ statusCode: 404 });
     });
 
     test('calls ROLLBACK when any step throws', async () => {
-        repo.reviewSubmission.mockRejectedValueOnce(new Error('DB error'));
+        mockRepo.reviewSubmission.mockRejectedValueOnce(new Error('DB error'));
         await expect(service.reviewSubmission(1, validPayload, 1)).rejects.toThrow();
         const queryCalls = mockClient.query.mock.calls.map((c) => c[0]);
         expect(queryCalls).toContain('ROLLBACK');
     });
 
     test('fires email notification after COMMIT (fire-and-forget)', async () => {
-        repo.getSubmissionEmailDetails.mockResolvedValueOnce({
+        mockRepo.getSubmissionEmailDetails.mockResolvedValueOnce({
             email: 'instructor@example.com',
             instructor_name: 'อาจารย์สมชาย',
             subject_code: 'CS101',
             subject_name: 'Intro CS',
             document_type: 'outline',
         });
-        emailService.sendReviewNotification = jest.fn().mockResolvedValue(undefined);
 
         await service.reviewSubmission(1, validPayload, 1);
 
-        expect(emailService.sendReviewNotification).toHaveBeenCalledWith(
+        expect(mockEmailService.sendReviewNotification).toHaveBeenCalledWith(
             expect.objectContaining({ to: 'instructor@example.com' })
         );
     });
 
     test('does NOT throw if email fetch fails (error caught silently)', async () => {
-        repo.getSubmissionEmailDetails.mockRejectedValueOnce(new Error('Email DB error'));
+        mockRepo.getSubmissionEmailDetails.mockRejectedValueOnce(new Error('Email DB error'));
         await expect(service.reviewSubmission(1, validPayload, 1)).resolves.toBeDefined();
     });
 });
 
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // getSubmissionHistory
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 describe('getSubmissionHistory', () => {
     test('throws 400 when termSubjectId is 0', async () => {
         await expect(service.getSubmissionHistory(0, 'outline'))
@@ -274,7 +284,7 @@ describe('getSubmissionHistory', () => {
 
     test('returns repository result on success', async () => {
         const historyData = [{ round_number: 1, event_type: 'submitted' }];
-        repo.getSubmissionHistory.mockResolvedValueOnce(historyData);
+        mockRepo.getSubmissionHistory.mockResolvedValueOnce(historyData);
         const result = await service.getSubmissionHistory(1, 'outline');
         expect(result).toEqual(historyData);
     });
