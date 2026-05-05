@@ -126,3 +126,39 @@ export async function findUsersByRole(roleName) {
     const result = await pool.query(sql, [roleName]);
     return result.rows;
 }
+
+/**
+ * หา guest user จาก username
+ * คืน user object ที่มี password_hash สำหรับเทียบรหัสผ่าน
+ * @param {string} username - username ของ guest user
+ * @returns {Promise<Object|null>} - User object พร้อม roles หรือ null ถ้าไม่ใช่ guest user
+ */
+export async function findGuestUser(username) {
+    const sql = `
+        SELECT
+            u.id,
+            u.username,
+            u.email,
+            u.first_name_th,
+            u.last_name_th,
+            u.first_name_en,
+            u.last_name_en,
+            u.user_type,
+            u.password_hash,
+            u.department,
+            u.faculty,
+            u.is_active,
+            array_agg(DISTINCT r.role_name) AS roles
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.is_active = true
+        LEFT JOIN roles r ON r.id = ur.role_id
+        WHERE LOWER(u.username) = LOWER($1)
+          AND u.user_type = 'guest'
+          AND u.is_active = true
+          AND u.password_hash IS NOT NULL
+        GROUP BY u.id
+        LIMIT 1
+    `;
+    const result = await pool.query(sql, [username]);
+    return result.rows[0] || null;
+}
