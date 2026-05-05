@@ -1,23 +1,40 @@
-version: '3.8'
-
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: student_workload_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - workload-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: .
     container_name: student_workload_backend
     restart: unless-stopped
     env_file: .env
-    environment:
-      NODE_ENV: production
     ports:
-      - "4000:4000"
+      - "9115:4000"
     volumes:
       - uploads_data:/app/uploads
     networks:
       - workload-network
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
+  postgres_data:
   uploads_data:
-    driver: local
 
 networks:
   workload-network:
